@@ -1164,7 +1164,8 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 async function startServer() {
   if (!isProduction) {
     // Loaded lazily so Vite is never bundled into the Vercel serverless function.
-    const { createServer: createViteServer } = await import('vite');
+    const viteModuleId = 'vite'; // variable keeps Vercel from tracing/bundling Vite into the function
+    const { createServer: createViteServer } = await import(/* @vite-ignore */ viteModuleId);
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

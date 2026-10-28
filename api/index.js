@@ -681,7 +681,11 @@ app.use((err, req, res, next) => {
 });
 async function startServer() {
   if (!isProduction) {
-    const { createServer: createViteServer } = await import("vite");
+    const viteModuleId = "vite";
+    const { createServer: createViteServer } = await import(
+      /* @vite-ignore */
+      viteModuleId
+    );
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa"
