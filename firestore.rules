@@ -1,0 +1,150 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function roleIs(role) {
+      return signedIn() && request.auth.token.role == role;
+    }
+
+    function admin() {
+      return roleIs('SUPER_ADMIN') || roleIs('ADMIN');
+    }
+
+    function roleIn(roles) {
+      return signedIn() && request.auth.token.role in roles;
+    }
+
+    function validId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    function hasNoCredentials(data) {
+      return !data.keys().hasAny([
+        'password', 'passwordHash', 'passwordSalt',
+        'pin', 'pinHash', 'pinSalt', 'twoFactorSecret'
+      ]);
+    }
+
+    function ownsNew() {
+      return request.resource.data.OwnerUID == request.auth.uid;
+    }
+
+    function ownsExisting() {
+      return resource.data.OwnerUID == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow get: if signedIn() && (request.auth.uid == userId || admin());
+      allow list: if admin();
+      allow create: if admin()
+        && validId(userId)
+        && hasNoCredentials(request.resource.data)
+        && request.resource.data.role in [
+          'ADMIN', 'ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER',
+          'WAREHOUSE_MANAGER', 'ACCOUNTS', 'MANAGEMENT'
+        ];
+      allow update: if admin()
+        && hasNoCredentials(request.resource.data)
+        && request.resource.data.role in [
+          'ADMIN', 'ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER',
+          'WAREHOUSE_MANAGER', 'ACCOUNTS', 'MANAGEMENT'
+        ];
+      allow delete: if admin() && resource.data.role != 'SUPER_ADMIN';
+    }
+
+    match /admins/{adminId} {
+      allow read, write: if admin() && request.auth.uid == adminId;
+    }
+
+    match /inventory/{itemId} {
+      allow read: if roleIn(['SUPER_ADMIN', 'ADMIN', 'ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'WAREHOUSE_MANAGER', 'ACCOUNTS', 'MANAGEMENT']);
+      allow create, update: if admin() || roleIs('WAREHOUSE_MANAGER');
+      allow delete: if admin();
+    }
+
+    match /sales/{saleId} {
+      allow read: if roleIn(['SUPER_ADMIN', 'ADMIN', 'ASM', 'ORDER_BOOKER', 'SALESMAN', 'ACCOUNTS', 'MANAGEMENT']);
+      allow create: if admin() || (
+        (roleIs('ORDER_BOOKER') || roleIs('SALESMAN')) && validId(saleId) && ownsNew()
+      );
+      allow update: if admin() || (
+        (roleIs('ORDER_BOOKER') || roleIs('SALESMAN')) &&
+        validId(saleId) && ownsExisting() && ownsNew()
+      );
+      allow delete: if admin();
+    }
+
+    match /outlets/{outletId} {
+      allow read: if roleIn(['SUPER_ADMIN', 'ADMIN', 'ASM', 'ORDER_BOOKER', 'SALESMAN', 'ACCOUNTS', 'MANAGEMENT']);
+      allow create, update: if admin() || roleIs('ORDER_BOOKER') || roleIs('SALESMAN');
+      allow delete: if admin();
+    }
+
+    match /dispatchLoads/{loadId} {
+      allow read: if roleIn(['SUPER_ADMIN', 'ADMIN', 'ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'MANAGEMENT']);
+      allow create, update: if admin() || roleIs('SALESMAN') || roleIs('DRIVER');
+      allow delete: if admin();
+    }
+
+    match /cashSlips/{slipId} {
+      allow read: if roleIn(['SUPER_ADMIN', 'ADMIN', 'ASM', 'SALESMAN', 'ACCOUNTS', 'MANAGEMENT']);
+      allow create, update: if admin() || roleIs('SALESMAN');
+      allow delete: if admin();
+    }
+
+    match /dailyClosings/{closingId} {
+      allow read: if roleIn(['SUPER_ADMIN', 'ADMIN', 'ASM', 'ACCOUNTS', 'MANAGEMENT']);
+      allow create, update: if admin() || roleIs('ACCOUNTS') || roleIs('ASM');
+      allow delete: if admin();
+    }
+
+    match /payments/{paymentId} {
+      allow read: if roleIn(['SUPER_ADMIN', 'ADMIN', 'ASM', 'SALESMAN', 'ACCOUNTS', 'MANAGEMENT']);
+      allow create, update: if admin() || roleIs('ACCOUNTS') || roleIs('SALESMAN');
+      allow delete: if admin();
+    }
+
+    match /stockInward/{recordId} {
+      allow read: if roleIn(['SUPER_ADMIN', 'ADMIN', 'ASM', 'WAREHOUSE_MANAGER', 'MANAGEMENT']);
+      allow create, update: if admin() || roleIs('WAREHOUSE_MANAGER');
+      allow delete: if admin();
+    }
+
+    match /stockMovements/{recordId} {
+      allow read: if roleIn(['SUPER_ADMIN', 'ADMIN', 'ASM', 'SALESMAN', 'WAREHOUSE_MANAGER', 'MANAGEMENT']);
+      allow create: if admin() || roleIs('WAREHOUSE_MANAGER') || roleIs('SALESMAN');
+      allow update, delete: if admin();
+    }
+
+    match /routes/{routeId} {
+      allow read: if roleIn(['SUPER_ADMIN', 'ADMIN', 'ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'MANAGEMENT']);
+      allow create, update, delete: if admin();
+    }
+
+    match /orderBookers/{bookerId} {
+      allow read: if roleIn(['SUPER_ADMIN', 'ADMIN', 'ASM', 'MANAGEMENT']);
+      allow create, update, delete: if admin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if admin();
+      allow create, update, delete: if admin();
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if admin();
+      allow create: if signedIn()
+        && request.resource.data.UID == request.auth.uid
+        && request.resource.data.Role == request.auth.token.role;
+      allow update, delete: if false;
+    }
+
+    match /test/{testId} {
+      allow read, write: if false;
+    }
+
+  }
+}

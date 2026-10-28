@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Warsa Water Tracker - KFM Beverages",
+  "short_name": "Warsa Tracker",
+  "description": "KFM Beverages (WARSA) - Complete Water Beverage Distribution, Warehouse, Dispatch, Sales, Customer Ledgers and 8-Point Reconciliation System.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#dc2626",
+  "background_color": "#f8fafc",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

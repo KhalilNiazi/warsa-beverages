@@ -1,0 +1,266 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role, Firebase Authentication identity, salted PIN hash, and authorization permissions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "username": { "type": "string", "maxLength": 100 },
+        "passwordHash": { "type": "string", "maxLength": 512 },
+        "passwordSalt": { "type": "string", "maxLength": 256 },
+        "pinHash": { "type": "string", "maxLength": 512 },
+        "pinSalt": { "type": "string", "maxLength": 256 },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "ASM", "ORDER_BOOKER", "SALESMAN"] },
+        "roleTitle": { "type": "string", "maxLength": 100 },
+        "department": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 256 },
+        "email": { "type": "string", "maxLength": 128 },
+        "phone": { "type": "string", "maxLength": 64 },
+        "avatarColor": { "type": "string", "maxLength": 64 },
+        "iconName": { "type": "string", "maxLength": 64 },
+        "assignedRoute": { "type": "string", "maxLength": 100 },
+        "assignedRoutes": { "type": "array" },
+        "allowedPages": { "type": "array" },
+        "defaultPage": { "type": "string", "maxLength": 64 },
+        "twoFactorEnabled": { "type": "boolean" },
+        "lastLoginAt": { "type": "string" },
+        "passwordChangedAt": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "role"]
+    },
+    "InventoryItem": {
+      "title": "InventoryItem",
+      "description": "Warehouse stock inventory item representing bottle beverage SKUs.",
+      "type": "object",
+      "properties": {
+        "ID": { "type": "string", "maxLength": 64 },
+        "SKU": { "type": "string", "maxLength": 64 },
+        "Name": { "type": "string", "maxLength": 128 },
+        "Size": { "type": "string", "maxLength": 64 },
+        "Quantity": { "type": "number" },
+        "OpeningStock": { "type": "number" },
+        "InTransitQuantity": { "type": "number" },
+        "Price": { "type": "number" },
+        "MinThreshold": { "type": "number" },
+        "UpdatedAt": { "type": "string" }
+      },
+      "required": ["ID", "Name", "Quantity", "Price"]
+    },
+    "Outlet": {
+      "title": "Outlet",
+      "description": "Customer shop / retail outlet in water distribution route.",
+      "type": "object",
+      "properties": {
+        "ID": { "type": "string", "maxLength": 64 },
+        "Name": { "type": "string", "maxLength": 128 },
+        "Route": { "type": "string", "maxLength": 128 },
+        "Address": { "type": "string", "maxLength": 256 },
+        "ContactNumber": { "type": "string", "maxLength": 64 },
+        "OwnerName": { "type": "string", "maxLength": 128 },
+        "OpeningBalance": { "type": "number" },
+        "Status": { "type": "string", "enum": ["Active", "Inactive"] }
+      },
+      "required": ["ID", "Name", "Route"]
+    },
+    "SaleRecord": {
+      "title": "SaleRecord",
+      "description": "Booked sales order and delivery record.",
+      "type": "object",
+      "properties": {
+        "ID": { "type": "string", "maxLength": 64 },
+        "Date": { "type": "string" },
+        "OutletID": { "type": "string", "maxLength": 64 },
+        "OutletName": { "type": "string", "maxLength": 128 },
+        "Route": { "type": "string", "maxLength": 128 },
+        "TotalCases": { "type": "number" },
+        "GrandTotal": { "type": "number" },
+        "DeliveryStatus": { "type": "string", "enum": ["PENDING", "LOADED", "DELIVERED", "PARTIAL", "REJECTED"] },
+        "CashCollected": { "type": "number" },
+        "CreditAmount": { "type": "number" }
+      },
+      "required": ["ID", "Date", "OutletID", "TotalCases"]
+    },
+    "DispatchLoad": {
+      "title": "DispatchLoad",
+      "description": "Vehicle dispatch load sheet for route deliveries.",
+      "type": "object",
+      "properties": {
+        "ID": { "type": "string", "maxLength": 64 },
+        "Date": { "type": "string" },
+        "Route": { "type": "string", "maxLength": 128 },
+        "Salesman": { "type": "string", "maxLength": 128 },
+        "VehicleNumber": { "type": "string", "maxLength": 64 },
+        "Status": { "type": "string", "enum": ["DRAFT", "LOADED", "DISPATCHED", "RETURNING", "COMPLETED"] },
+        "TotalLoadedCases": { "type": "number" }
+      },
+      "required": ["ID", "Date", "Route", "Status"]
+    },
+    "CashSlip": {
+      "title": "CashSlip",
+      "description": "Daily route cash collection slip with denominations and expenses.",
+      "type": "object",
+      "properties": {
+        "ID": { "type": "string", "maxLength": 64 },
+        "Date": { "type": "string" },
+        "Salesman": { "type": "string", "maxLength": 128 },
+        "Route": { "type": "string", "maxLength": 128 },
+        "NetCashSubmitted": { "type": "number" },
+        "Status": { "type": "string", "enum": ["SUBMITTED", "VERIFIED", "RECONCILED"] }
+      },
+      "required": ["ID", "Date", "Salesman", "NetCashSubmitted"]
+    },
+    "DailyClosing": {
+      "title": "DailyClosing",
+      "description": "End-of-day summary closing reconciliations.",
+      "type": "object",
+      "properties": {
+        "ID": { "type": "string", "maxLength": 64 },
+        "Date": { "type": "string" },
+        "TotalSales": { "type": "number" },
+        "TotalCash": { "type": "number" },
+        "TotalCredit": { "type": "number" },
+        "TotalExpense": { "type": "number" },
+        "Difference": { "type": "number" }
+      },
+      "required": ["ID", "Date"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Customer recovery payment ledger transaction.",
+      "type": "object",
+      "properties": {
+        "ID": { "type": "string", "maxLength": 64 },
+        "Date": { "type": "string" },
+        "OutletID": { "type": "string", "maxLength": 64 },
+        "Amount": { "type": "number" },
+        "PaymentMethod": { "type": "string", "maxLength": 64 },
+        "ReferenceNumber": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["ID", "Date", "OutletID", "Amount"]
+    },
+    "StockInward": {
+      "title": "StockInward",
+      "description": "Factory production stock inward reception record.",
+      "type": "object",
+      "properties": {
+        "ID": { "type": "string", "maxLength": 64 },
+        "Date": { "type": "string" },
+        "BatchNumber": { "type": "string", "maxLength": 64 },
+        "ProductID": { "type": "string", "maxLength": 64 },
+        "Quantity": { "type": "number" }
+      },
+      "required": ["ID", "Date", "Quantity"]
+    },
+    "StockMovement": {
+      "title": "StockMovement",
+      "description": "Internal stock transfer and damage/breakage movement log.",
+      "type": "object",
+      "properties": {
+        "ID": { "type": "string", "maxLength": 64 },
+        "Date": { "type": "string" },
+        "Type": { "type": "string", "enum": ["DAMAGE", "SAMPLE", "TRANSFER", "ADJUSTMENT"] },
+        "ProductID": { "type": "string", "maxLength": 64 },
+        "Quantity": { "type": "number" }
+      },
+      "required": ["ID", "Date", "Type", "Quantity"]
+    },
+    "Route": {
+      "title": "Route",
+      "description": "Delivery route master definition.",
+      "type": "object",
+      "properties": {
+        "ID": { "type": "string", "maxLength": 64 },
+        "Name": { "type": "string", "maxLength": 128 },
+        "Description": { "type": "string", "maxLength": 256 },
+        "DayOfWeek": { "type": "string", "maxLength": 64 },
+        "Active": { "type": "boolean" }
+      },
+      "required": ["ID", "Name"]
+    },
+    "OrderBooker": {
+      "title": "OrderBooker",
+      "description": "Field sales order booker agent record.",
+      "type": "object",
+      "properties": {
+        "ID": { "type": "string", "maxLength": 64 },
+        "Name": { "type": "string", "maxLength": 128 },
+        "Phone": { "type": "string", "maxLength": 64 },
+        "AssignedRoute": { "type": "string", "maxLength": 128 },
+        "Active": { "type": "boolean" }
+      },
+      "required": ["ID", "Name"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "System and plant configuration settings.",
+      "type": "object",
+      "properties": {
+        "ID": { "type": "string", "maxLength": 64 },
+        "PlantName": { "type": "string", "maxLength": 128 },
+        "ContactPhone": { "type": "string", "maxLength": 64 },
+        "Address": { "type": "string", "maxLength": 256 },
+        "AppsScriptUrl": { "type": "string", "maxLength": 512 }
+      },
+      "required": ["ID"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Authorized user profiles, passwords, cryptographic hashes, security PINs, and access roles."
+    },
+    "/inventory/{itemId}": {
+      "schema": "InventoryItem",
+      "description": "Physical warehouse stock items."
+    },
+    "/outlets/{outletId}": {
+      "schema": "Outlet",
+      "description": "Customer retail outlets and khata accounts."
+    },
+    "/sales/{saleId}": {
+      "schema": "SaleRecord",
+      "description": "Customer order bookings and delivered invoices."
+    },
+    "/dispatchLoads/{loadId}": {
+      "schema": "DispatchLoad",
+      "description": "Truck loading sheets and delivery dispatches."
+    },
+    "/cashSlips/{slipId}": {
+      "schema": "CashSlip",
+      "description": "End-of-day driver and route cash reconciliation slips."
+    },
+    "/dailyClosings/{closingId}": {
+      "schema": "DailyClosing",
+      "description": "Day-end financial and cash reconciliation closings."
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Customer payments and credit recoveries."
+    },
+    "/stockInward/{inwardId}": {
+      "schema": "StockInward",
+      "description": "Factory production stock reception inward."
+    },
+    "/stockMovements/{movementId}": {
+      "schema": "StockMovement",
+      "description": "Stock damage, adjustments, and internal warehouse movements."
+    },
+    "/routes/{routeId}": {
+      "schema": "Route",
+      "description": "Route master definitions."
+    },
+    "/orderBookers/{bookerId}": {
+      "schema": "OrderBooker",
+      "description": "Field order bookers directory."
+    },
+    "/settings/{settingId}": {
+      "schema": "Setting",
+      "description": "Plant configuration and system parameters."
+    }
+  }
+}

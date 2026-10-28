@@ -1,0 +1,199 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: #0f172a;
+    background-color: #ffffff;
+    letter-spacing: -0.011em;
+  }
+
+  /* Universal tabular figures for numeric elements */
+  .tabular-nums,
+  [data-numeric="true"],
+  table td,
+  .metric-value {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Smooth interactive focus states */
+  *:focus-visible {
+    outline: 2px solid #dc2626;
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Universal Dialog Portal & Overlay Stacking */
+  .responsive-dialog-portal,
+  [data-modal-portal="true"],
+  .modal-overlay-root {
+    z-index: 999999 !important;
+    isolation: isolate;
+  }
+}
+
+/* Enhanced Print Styles */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+  }
+
+  header, 
+  nav, 
+  aside, 
+  button:not(.print-include),
+  .print-hidden,
+  .md\:hidden,
+  #mobile-menu-btn,
+  #mobile-lock-btn,
+  #change-pin-btn,
+  #lock-switch-btn {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .print-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    width: 100% !important;
+    display: block !important;
+  }
+
+  .print-page-break {
+    page-break-before: always;
+  }
+
+  .card, .border {
+    border-color: #000000 !important;
+    box-shadow: none !important;
+  }
+
+  /* Force table borders to remain sharp when printed */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  table th, table td {
+    border: 1px solid #333333 !important;
+    padding: 4px 6px !important;
+  }
+
+  /* Crisp pass card print isolation */
+  #printable-pass-card,
+  #printable-master-sheet {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin: 0 auto !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    border-color: #000000 !important;
+  }
+
+  /* Single-page invoice printing: Original (left) + Customer copy (right), US Letter landscape */
+  @page {
+    size: 11in 8.5in;
+    margin: 0;
+  }
+
+  html, body {
+    width: 11in !important;
+    height: 8.5in !important;
+    max-height: 8.5in !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .warsa-print-page-wrapper {
+    position: relative !important;
+    width: 11in !important;
+    height: 8.5in !important;
+    max-height: 8.5in !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Stage = 1156px + 56px divider + 1156px = 2368px wide, 1360px tall.
+     Scale 0.4437 -> 1050px wide, fills the 1056px (11in) page edge to edge. */
+  .warsa-print-container,
+  body.warsa-printing-invoice #printable-invoice-page .warsa-print-container {
+    position: absolute !important;
+    left: 50% !important;
+    top: 50% !important;
+    width: 2368px !important;
+    height: 1360px !important;
+    transform: translate(-50%, -50%) scale(0.4437) !important;
+    transform-origin: center center !important;
+    margin: 0 !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  body.warsa-printing-invoice * {
+    visibility: hidden !important;
+  }
+
+  body.warsa-printing-invoice #printable-invoice-page,
+  body.warsa-printing-invoice #printable-invoice-page * {
+    visibility: visible !important;
+  }
+
+  body.warsa-printing-invoice #printable-invoice-page {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 11in !important;
+    height: 8.5in !important;
+    max-height: 8.5in !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    z-index: 99999999 !important;
+  }
+}

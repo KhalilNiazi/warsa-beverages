@@ -1,0 +1,6 @@
+{
+  "name": "Warsa Water Tracker",
+  "description": "KFM Beverages (WARSA) - Complete Water Beverage Distribution, Warehouse, Dispatch, Sales, Customer Ledgers and 8-Point Reconciliation System.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
