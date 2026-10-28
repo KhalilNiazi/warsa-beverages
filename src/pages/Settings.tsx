@@ -667,7 +667,7 @@ export function Settings({ currentUser }: SettingsProps) {
           throw new Error(result.error || `Firebase account creation failed (HTTP ${firebaseResponse.status}).`);
         }
 
-        // Profile is stored in Firestore /users with the Firebase uid as its id.
+        // Profile is stored in the Google Sheet (AppUsers tab) with the Firebase uid as its id.
         await createAppUserAndPersist({
           id: result.user?.id,
           name: editingUser.name,
@@ -803,7 +803,7 @@ export function Settings({ currentUser }: SettingsProps) {
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                 <Database className="h-3.5 w-3.5 text-emerald-600" />
-                Stored in Firestore (<code className="text-emerald-900 font-mono">/users</code>)
+                Stored in the Google Sheet (<code className="text-emerald-900 font-mono">AppUsers</code> tab)
               </span>
               <span className="text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">
                 {users.length} Active Accounts
@@ -1099,7 +1099,7 @@ export function Settings({ currentUser }: SettingsProps) {
                 />
                 <p className="text-[10px] text-slate-500 flex items-center gap-1">
                   <Database className="h-3 w-3 text-red-600 shrink-0" />
-                  Stored securely in Firebase Authentication. Passwords are never stored in Firestore or the browser.
+                  Stored securely in Firebase Authentication. Passwords are never stored in the Google Sheet or the browser.
                 </p>
               </div>
 
@@ -1116,7 +1116,7 @@ export function Settings({ currentUser }: SettingsProps) {
                 />
                 <p className="text-[10px] text-slate-500 flex items-center gap-1">
                   <Database className="h-3 w-3 text-red-600 shrink-0" />
-                  Persisted to Firebase Firestore database (<code className="text-red-700 font-bold">/users</code>) with cryptographic salt.
+                  Saved to the Google Sheet (<code className="text-red-700 font-bold">AppUsers</code> tab) as a salted hash.
                 </p>
               </div>
 
@@ -1523,200 +1523,6 @@ export function Settings({ currentUser }: SettingsProps) {
               <Save className="h-4 w-4" />
               <span>Save Company Profile</span>
             </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Firebase Cloud Database & Authentication Suite */}
-      <Card className="border-slate-200 shadow-sm overflow-hidden">
-        <CardHeader className="bg-white text-slate-900 border-b border-red-100 pb-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-red-600 text-white shadow-md shadow-red-600/20 font-bold">
-                <Database className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-xl font-black tracking-tight text-slate-900">Firebase Cloud Firestore &amp; Auth Suite</CardTitle>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-50 text-red-700 border border-red-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Firestore DB Active
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  High-speed real-time document persistence, multi-role security rules, and Google/Email Firebase Authentication without JWT secrets.
-                </p>
-              </div>
-            </div>
-
-            {lastFirestoreSyncTime && (
-              <div className="text-right text-xs text-slate-600 bg-red-50/60 px-3 py-1.5 rounded-lg border border-red-100 self-start sm:self-auto">
-                <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Last Firestore Sync</span>
-                <span className="text-red-700 font-semibold">{new Date(lastFirestoreSyncTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} ({new Date(lastFirestoreSyncTime).toLocaleDateString()})</span>
-              </div>
-            )}
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-4 md:p-6 space-y-6">
-          {/* Firestore Connection Details */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <div className="p-3 bg-white rounded-lg border border-slate-200">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Firestore Database ID</span>
-                <span className="font-mono font-bold text-slate-800 text-[11px] break-all">
-                  (default)
-                </span>
-              </div>
-              <div className="p-3 bg-white rounded-lg border border-slate-200">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Firebase Project ID</span>
-                <span className="font-mono font-bold text-slate-800 text-[11px]">
-                  gen-lang-client-0498793067
-                </span>
-              </div>
-              <div className="p-3 bg-white rounded-lg border border-slate-200">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Authentication Engine</span>
-                <span className="font-bold text-emerald-700 text-[11px] flex items-center gap-1.5 mt-0.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                  Firebase Auth (Zero JWT Required)
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-slate-500">
-              <p>
-                Every sale, inventory movement, outlet update, and cash slip automatically mirrors to Firestore in the background.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleTestFirestore}
-                disabled={isTestingFirestore}
-                className="gap-1.5 border-slate-300 text-slate-700 hover:bg-red-50 hover:text-red-700 font-bold text-xs"
-              >
-                <RefreshCw className={cn("h-3.5 w-3.5", isTestingFirestore && "animate-spin text-red-600")} />
-                {isTestingFirestore ? 'Checking...' : 'Test Firestore Connection'}
-              </Button>
-            </div>
-          </div>
-
-          {/* Firestore Operations Toolbar */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Button
-              variant="outline"
-              onClick={handlePushFirestore}
-              disabled={isPushingFirestore}
-              className="h-auto py-3 px-4 flex flex-col items-start text-left border-slate-200 hover:border-red-500 hover:bg-red-50/50 transition-all group"
-            >
-              <div className="flex items-center gap-2 font-bold text-slate-900 group-hover:text-red-700 text-xs">
-                <UploadCloud className={cn("h-4 w-4 text-red-600", isPushingFirestore && "animate-bounce")} />
-                Store All Data &amp; Passwords in Firebase Firestore (Cloud Backup)
-              </div>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Uploads all collections: user logins, passwords (PBKDF2 hashes), inventory, sales, outlets, dispatches, cash slips, closings, payments, routes, and stock inward to Firestore.
-              </p>
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={handlePullFirestore}
-              disabled={isPullingFirestore}
-              className="h-auto py-3 px-4 flex flex-col items-start text-left border-slate-200 hover:border-red-500 hover:bg-red-50/50 transition-all group"
-            >
-              <div className="flex items-center gap-2 font-bold text-slate-900 group-hover:text-red-700 text-xs">
-                <DownloadCloud className={cn("h-4 w-4 text-red-600", isPullingFirestore && "animate-bounce")} />
-                Restore All Data &amp; Passwords from Firebase Firestore (Cloud Restore)
-              </div>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Fetches latest cloud records, staff users, passwords, and entity data from your Firestore database into local app storage &amp; IndexedDB.
-              </p>
-            </Button>
-          </div>
-
-          {/* Feedback banner */}
-          {firestoreFeedback && (
-            <div className={cn(
-              "p-3.5 rounded-xl text-xs flex items-start justify-between gap-3 border",
-              firestoreFeedback.type === 'success' ? "bg-red-50 text-red-900 border-red-200" :
-              firestoreFeedback.type === 'error' ? "bg-red-100 text-red-950 border-red-300" :
-              "bg-red-50/50 text-red-900 border-red-200"
-            )}>
-              <div className="flex items-start gap-2">
-                {firestoreFeedback.type === 'success' ? (
-                  <CheckCircle2 className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
-                )}
-                <div>
-                  <p className="font-semibold">{firestoreFeedback.message}</p>
-                </div>
-              </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setFirestoreFeedback(null)} 
-                className="h-6 w-6 p-0 text-slate-500 hover:text-slate-900"
-              >
-                ✕
-              </Button>
-            </div>
-          )}
-
-          {/* Firestore Collections Reference */}
-          <div className="pt-2 border-t border-slate-200">
-            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">
-              Active Firestore Document Collections (Project: kmc-warsa)
-            </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <div className="p-2.5 bg-emerald-50/50 rounded-lg border border-emerald-200">
-                <code className="text-emerald-800 font-bold block">/users</code>
-                <span className="text-[11px] text-slate-600">Staff logins, passwords &amp; PIN hashes</span>
-              </div>
-              <div className="p-2.5 bg-red-50/40 rounded-lg border border-red-100">
-                <code className="text-red-700 font-bold block">/inventory</code>
-                <span className="text-[11px] text-slate-500">Warehouse stock &amp; bottle SKUs</span>
-              </div>
-              <div className="p-2.5 bg-red-50/40 rounded-lg border border-red-100">
-                <code className="text-red-700 font-bold block">/outlets</code>
-                <span className="text-[11px] text-slate-500">Retail customer shops &amp; khata ledgers</span>
-              </div>
-              <div className="p-2.5 bg-red-50/40 rounded-lg border border-red-100">
-                <code className="text-red-700 font-bold block">/sales</code>
-                <span className="text-[11px] text-slate-500">Booked orders &amp; delivered invoices</span>
-              </div>
-              <div className="p-2.5 bg-red-50/40 rounded-lg border border-red-100">
-                <code className="text-red-700 font-bold block">/dispatchLoads</code>
-                <span className="text-[11px] text-slate-500">Vehicle loading sheets &amp; routes</span>
-              </div>
-              <div className="p-2.5 bg-red-50/40 rounded-lg border border-red-100">
-                <code className="text-red-700 font-bold block">/cashSlips</code>
-                <span className="text-[11px] text-slate-500">Daily route cash slip books</span>
-              </div>
-              <div className="p-2.5 bg-red-50/40 rounded-lg border border-red-100">
-                <code className="text-red-700 font-bold block">/dailyClosings</code>
-                <span className="text-[11px] text-slate-500">8-point end-of-day Hisaab reconciliations</span>
-              </div>
-              <div className="p-2.5 bg-red-50/40 rounded-lg border border-red-100">
-                <code className="text-red-700 font-bold block">/payments</code>
-                <span className="text-[11px] text-slate-500">Customer payments &amp; ledger credit drops</span>
-              </div>
-              <div className="p-2.5 bg-red-50/40 rounded-lg border border-red-100">
-                <code className="text-red-700 font-bold block">/stockInward</code>
-                <span className="text-[11px] text-slate-500">Factory production inward receipts</span>
-              </div>
-              <div className="p-2.5 bg-red-50/40 rounded-lg border border-red-100">
-                <code className="text-red-700 font-bold block">/stockMovements</code>
-                <span className="text-[11px] text-slate-500">Internal transfers &amp; damage logs</span>
-              </div>
-              <div className="p-2.5 bg-red-50/40 rounded-lg border border-red-100">
-                <code className="text-red-700 font-bold block">/routes</code>
-                <span className="text-[11px] text-slate-500">Delivery route master records</span>
-              </div>
-              <div className="p-2.5 bg-red-50/40 rounded-lg border border-red-100">
-                <code className="text-red-700 font-bold block">/orderBookers</code>
-                <span className="text-[11px] text-slate-500">Field sales order bookers directory</span>
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>

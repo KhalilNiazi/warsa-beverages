@@ -228,8 +228,11 @@ export const createAppUserAndPersist = async (
       created.pinSalt = salt;
     }
   }
-  await saveUserToFirestore(created);
-  triggerCloudSync('saveUser', created);
+  // Staff profiles are stored in the Google Sheet (AppUsers tab); wait for the result.
+  const res = await callGoogleAppsScript('saveUser', created);
+  if (!res || !res.success) {
+    throw new Error(res?.error || 'Could not save the user profile to the Google Sheet.');
+  }
   return created;
 };
 

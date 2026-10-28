@@ -529,7 +529,8 @@ function authorizeUserRole(user, action, payload) {
   if (readRoles[action] && readRoles[action].indexOf(user.role) === -1) {
     return { allowed: false, reason: 'Your role is not permitted to read this collection' };
   }
-  if (action === 'getUsers' || action === 'getAuditLogs') {
+  // Staff profiles are needed by every signed-in user for the PIN gate (this used to live in Firestore).
+  if (action === 'getAuditLogs') {
     return { allowed: false, reason: 'Administrative records are restricted to administrators' };
   }
   if (action === 'saveAuditLog') {
