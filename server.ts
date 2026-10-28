@@ -18,37 +18,42 @@
  */
 
 import express, { Request, Response, NextFunction } from 'express';
-import 'dotenv/config';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import cookieParser from 'cookie-parser';
+import dotenv from 'dotenv';
 import { applicationDefault, cert, getApps, initializeApp as initializeAdminApp } from 'firebase-admin/app';
 import { getAuth as getFirebaseAdminAuth } from 'firebase-admin/auth';
 
-function requireServerEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(`[Server Config] Missing required environment variable: ${name}`);
-  }
-  return value;
-}
+dotenv.config();
 
-const firebaseAdminProjectId = requireServerEnv('FIREBASE_PROJECT_ID');
-const firebaseAdminClientEmail = process.env.FIREBASE_CLIENT_EMAIL || '';
-const firebaseAdminPrivateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
-const firebaseAdminApp = getApps().length > 0
-  ? getApps()[0]
-  : initializeAdminApp({
-      credential: firebaseAdminClientEmail && firebaseAdminPrivateKey
-        ? cert({
-            projectId: firebaseAdminProjectId,
-            clientEmail: firebaseAdminClientEmail,
-            privateKey: firebaseAdminPrivateKey
-          })
-        : applicationDefault(),
-      projectId: firebaseAdminProjectId || undefined
-    });
+const firebaseAdminProjectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || '';
+const firebaseAdminClientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
+// Accept the key with literal \n sequences, real newlines, or wrapped in quotes (Vercel/.env differences).
+const firebaseAdminPrivateKey = (process.env.FIREBASE_PRIVATE_KEY || '')
+  .trim()
+  .replace(/^["']|["']$/g, '')
+  .replace(/\\n/g, '\n');
+
+// Lazy init: a bad/missing credential must NOT crash the whole server at startup.
+let cachedAdminApp: ReturnType<typeof initializeAdminApp> | null = null;
+function getAdminApp() {
+  if (cachedAdminApp) return cachedAdminApp;
+  cachedAdminApp = getApps().length > 0
+    ? getApps()[0]
+    : initializeAdminApp({
+        credential: firebaseAdminClientEmail && firebaseAdminPrivateKey
+          ? cert({
+              projectId: firebaseAdminProjectId,
+              clientEmail: firebaseAdminClientEmail,
+              privateKey: firebaseAdminPrivateKey
+            })
+          : applicationDefault(),
+        projectId: firebaseAdminProjectId || undefined
+      });
+  return cachedAdminApp;
+}
 
 const app = express();
 // Port 3000 strictly enforced per environment constraint
@@ -122,7 +127,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // 2B. CORS CONFIGURATION (Point 13: Explicit Allowlist, No Wildcards with Credentials)
 // =========================================================================
 const ALLOWED_ORIGINS = new Set(
-  (process.env.ALLOWED_ORIGINS || '')
+  (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000')
     .split(',').map(origin => origin.trim()).filter(Boolean)
 );
 
@@ -160,7 +165,7 @@ function authenticateFirebaseAdmin(req: AuthenticatedRequest, res: Response, nex
     return res.status(401).json({ success: false, error: 'Firebase ID token is required.' });
   }
 
-  getFirebaseAdminAuth(firebaseAdminApp).verifyIdToken(token)
+  getFirebaseAdminAuth(getAdminApp()).verifyIdToken(token)
     .then((decoded) => {
       if (decoded.role !== 'SUPER_ADMIN') {
         return res.status(403).json({ success: false, error: 'Only a trusted SUPER_ADMIN can create accounts.' });
@@ -751,12 +756,12 @@ app.post('/api/firebase/users', authenticateFirebaseAdmin, async (req: Authentic
   }
 
   try {
-    const firebaseUser = await getFirebaseAdminAuth(firebaseAdminApp).createUser({
+    const firebaseUser = await getFirebaseAdminAuth(getAdminApp()).createUser({
       displayName: sanitizeString(name),
       email: email.trim().toLowerCase(),
       password
     });
-    await getFirebaseAdminAuth(firebaseAdminApp).setCustomUserClaims(firebaseUser.uid, { role });
+    await getFirebaseAdminAuth(getAdminApp()).setCustomUserClaims(firebaseUser.uid, { role });
     res.status(201).json({
       success: true,
       user: { id: firebaseUser.uid, name: firebaseUser.displayName, email: firebaseUser.email, role }
@@ -1158,6 +1163,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 // =========================================================================
 async function startServer() {
   if (!isProduction) {
+    // Loaded lazily so Vite is never bundled into the Vercel serverless function.
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -1177,6 +1183,8 @@ async function startServer() {
   });
 }
 
+// On Vercel the Express app is exported and run as a serverless function (api/index.ts);
+// the static frontend is served from dist/ by Vercel itself.
 if (!process.env.VERCEL) {
   startServer().catch(err => {
     console.error('Failed to start server:', err);
