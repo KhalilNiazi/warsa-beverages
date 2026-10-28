@@ -21,3 +21,4 @@ npm.cmd
 *.keystore
 *.jks
 google-services.json
+*.zip
