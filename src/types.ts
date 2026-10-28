@@ -149,7 +149,7 @@ export interface InvoiceItem {
 export type DeliveryStatus = 'BOOKED' | 'PENDING' | 'LOADED' | 'DISPATCHED' | 'DELIVERED' | 'PARTIAL' | 'REJECTED' | 'CANCELLED';
 
 export interface SaleRecord {
-  ID: string; // e.g. INV000001
+  ID: string; 
   Date: string;
   OutletID?: string;
   OutletSrNo?: number;
@@ -160,7 +160,7 @@ export interface SaleRecord {
   ContactNumber: string;
   OwnerName?: string;
   OrderBooker?: string;
-  BookedBy?: string; // Name of user or order booker who entered the sale
+  BookedBy?: string; 
   Status?: string;
   DeliveryStatus?: DeliveryStatus;
   RejectionReason?: RejectionReason | string;
