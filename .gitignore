@@ -22,3 +22,6 @@ npm.cmd
 *.jks
 google-services.json
 *.zip
+
+# Vercel CLI local link folder
+.vercel
