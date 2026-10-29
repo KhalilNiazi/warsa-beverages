@@ -155,6 +155,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // =========================================================================
 // 3. REQUEST PARSING & LIMITS (Request-size limits prevent DoS)
 // =========================================================================
+// The app sends Google Sheet sync requests as text/plain (to avoid CORS preflight on Apps Script).
+// Read them as raw text so the JSON is forwarded intact; express.json() ignores text/plain.
+app.use('/api/google-sheets', express.text({ type: '*/*', limit: '4mb' }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
@@ -209,7 +212,7 @@ app.post('/api/google-sheets', async (req: Request, res: Response) => {
     const upstream = await fetch(GOOGLE_APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(req.body),
+      body: typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {}),
       redirect: 'follow'
     });
 
