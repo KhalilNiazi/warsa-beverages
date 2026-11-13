@@ -35,3 +35,4 @@ KFM Beverages (WARSA) - Complete Water Beverage Distribution, Warehouse, Dispatc
 - **Shops & Outlets (`/outlets`)**: Retailer registry, route mapping, GPS coordinates, and custom bottle rates.
 - **Order Bookers (`/orderBookers`)**: Sales rep performance, route assignments, and daily booking summaries.
 - **Real-Time Cloud Sync**: Bidirectional synchronization with Google Sheets backend and Firebase Firestore.
+"# warsa-beverages" 
