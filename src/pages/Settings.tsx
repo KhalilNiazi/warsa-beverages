@@ -619,7 +619,7 @@ export function Settings({ currentUser }: SettingsProps) {
 
     const firebaseEmail = (editingUser.username || '').trim().toLowerCase().includes('@')
       ? (editingUser.username || '').trim().toLowerCase()
-      : `${(editingUser.username || '').trim().toLowerCase()}@kmc.warsa`;
+      : `${(editingUser.username || '').trim().toLowerCase()}@kfm.warsa`;
 
     if (editingUser.id) {
       // Update existing
@@ -1063,12 +1063,12 @@ export function Settings({ currentUser }: SettingsProps) {
                 <label className="text-xs font-bold text-slate-700 uppercase">Firebase Email / Username *</label>
                 <Input
                   required
-                  placeholder="e.g. ali.booker (becomes ali.booker@kmc.warsa)"
+                  placeholder="e.g. ali.booker (becomes ali.booker@kfm.warsa)"
                   value={editingUser.username || ''}
                   onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })}
                 />
                 <p className="text-[10px] text-slate-500">
-                  Enter the username part only or a complete email. New accounts use the <code className="font-bold text-red-700">@kmc.warsa</code> Firebase email domain.
+                  Enter the username part only or a complete email. New accounts use the <code className="font-bold text-red-700">@kfm.warsa</code> Firebase email domain.
                 </p>
               </div>
 
@@ -1090,13 +1090,24 @@ export function Settings({ currentUser }: SettingsProps) {
                     );
                   })()}
                 </div>
-                <Input
-                  required
-                  type="password"
-                  placeholder="Min 8 chars, mixed case, numbers & symbols"
-                  value={editingUser.password || ''}
-                  onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
-                />
+                <div className="relative">
+                  <Input
+                    required
+                    type={showUserPassword ? 'text' : 'password'}
+                    placeholder="Min 8 chars, mixed case, numbers & symbols"
+                    value={editingUser.password || ''}
+                    onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowUserPassword(v => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-red-600"
+                    aria-label={showUserPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showUserPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 <p className="text-[10px] text-slate-500 flex items-center gap-1">
                   <Database className="h-3 w-3 text-red-600 shrink-0" />
                   Stored securely in Firebase Authentication. Passwords are never stored in the Google Sheet or the browser.
@@ -1963,7 +1974,7 @@ export function Settings({ currentUser }: SettingsProps) {
                       },
                       {
                         title: 'Least-Privilege Firebase Security Rules',
-                        desc: 'Default-deny rules with granular per-collection constraints deployed to Cloud Firestore (Project: kmc-warsa).',
+                        desc: 'Default-deny rules with granular per-collection constraints deployed to Cloud Firestore (Project: kfm-warsa).',
                         status: 'Active & Deployed'
                       },
                       {
