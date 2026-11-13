@@ -138,6 +138,11 @@ export function Settings({ currentUser }: SettingsProps) {
   const [editingUser, setEditingUser] = useState<(Partial<AppUserProfile> & AppUserCredentialInput) | null>(null);
   const [userToDelete, setUserToDelete] = useState<AppUserProfile | null>(null);
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
+  const [showUserPassword, setShowUserPassword] = useState(false);
+
+  useEffect(() => {
+    if (!isUserModalOpen) setShowUserPassword(false);
+  }, [isUserModalOpen]);
 
   // Quick PIN reset inline
   const [editingPinUserId, setEditingPinUserId] = useState<string | null>(null);
@@ -1091,23 +1096,23 @@ export function Settings({ currentUser }: SettingsProps) {
                   })()}
                 </div>
                 <div className="relative">
-                  <Input
-                    required
-                    type={showUserPassword ? 'text' : 'password'}
-                    placeholder="Min 8 chars, mixed case, numbers & symbols"
-                    value={editingUser.password || ''}
-                    onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowUserPassword(v => !v)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-red-600"
-                    aria-label={showUserPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showUserPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
+                <Input
+                  required
+                  type={showUserPassword ? 'text' : 'password'}
+                  placeholder="Min 8 chars, mixed case, numbers & symbols"
+                  value={editingUser.password || ''}
+                  onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowUserPassword(v => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-red-600"
+                  aria-label={showUserPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showUserPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
                 <p className="text-[10px] text-slate-500 flex items-center gap-1">
                   <Database className="h-3 w-3 text-red-600 shrink-0" />
                   Stored securely in Firebase Authentication. Passwords are never stored in the Google Sheet or the browser.
