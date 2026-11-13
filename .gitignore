@@ -23,5 +23,10 @@ npm.cmd
 google-services.json
 *.zip
 
+# Firebase Admin secrets - never upload
+admin-tools/serviceAccountKey.json
+serviceAccountKey.json
+*-firebase-adminsdk-*.json
+
 # Vercel CLI local link folder
 .vercel
