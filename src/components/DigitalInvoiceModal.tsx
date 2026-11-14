@@ -102,14 +102,6 @@ const SHEET_CSS = `
 .dinv-sign div{width:160px;border-top:1px solid #000;text-align:center;padding-top:4px;font-weight:700}
 .dinv-note{margin-top:12px;border:1px solid #000;padding:8px;font-size:11px;white-space:pre-wrap}
 .dinv-foot{text-align:center;margin-top:14px;font-size:10px}
-.dinv-print-only{position:fixed;left:-99999px;top:0}
-@media print{
-  @page{size:A4 portrait;margin:0}
-  html,body{width:210mm !important;height:auto !important;margin:0 !important;padding:0 !important;overflow:visible !important}
-  body.dinv-printing > *:not(.dinv-print-only){display:none !important}
-  body.dinv-printing .dinv-print-only{position:static !important;left:auto !important;display:block !important;width:210mm !important;height:auto !important;overflow:visible !important}
-  body.dinv-printing .dinv-sheet{width:210mm !important;min-height:297mm !important;height:auto !important;page-break-after:avoid}
-}
 `;
 
 export function DigitalInvoiceModal({
@@ -200,9 +192,8 @@ export function DigitalInvoiceModal({
 
   const createInvoicePdf = (canvas: HTMLCanvasElement) => {
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const margin = 4;
-    const maxWidth = A4_W_MM - margin * 2;
-    const maxHeight = A4_H_MM - margin * 2;
+    const maxWidth = A4_W_MM;
+    const maxHeight = A4_H_MM;
     const ratio = Math.min(maxWidth / canvas.width, maxHeight / canvas.height);
     const width = canvas.width * ratio;
     const height = canvas.height * ratio;
@@ -389,32 +380,77 @@ export function DigitalInvoiceModal({
     </div>
   );
 
-  const handlePrint = () => {
-    const preview = previewRef.current?.querySelector('.dinv-sheet');
-    if (!preview) {
+  const handlePrint = async () => {
+    const el = previewRef.current?.querySelector('.dinv-sheet') as HTMLElement | null;
+    if (!el) {
       console.error('Digital invoice preview is unavailable for printing.');
       return;
     }
 
-    document.querySelector('.dinv-print-only')?.remove();
-    const printContainer = document.createElement('div');
-    printContainer.className = 'dinv-print-only';
-    const style = document.createElement('style');
-    style.textContent = SHEET_CSS;
-    printContainer.append(style, preview.cloneNode(true));
-    document.body.appendChild(printContainer);
-    document.body.classList.add('dinv-printing');
+    setBusy(true);
+    let printFrame: HTMLIFrameElement | null = null;
+    try {
+      const canvas = await renderInvoiceCanvas(el);
+      printFrame = document.createElement('iframe');
+      printFrame.title = `Invoice ${sale.ID} print preview`;
+      printFrame.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0';
+      document.body.appendChild(printFrame);
 
-    let cleanupTimer = 0;
-    const cleanup = () => {
-      document.body.classList.remove('dinv-printing');
-      printContainer.remove();
-      window.clearTimeout(cleanupTimer);
-      window.removeEventListener('afterprint', cleanup);
-    };
-    window.addEventListener('afterprint', cleanup, { once: true });
-    cleanupTimer = window.setTimeout(cleanup, 60_000);
-    window.print();
+      const printDocument = printFrame.contentDocument;
+      if (!printDocument) throw new Error('Could not open the isolated print document.');
+      printDocument.open();
+      printDocument.write('<!doctype html><html><head><meta charset="utf-8"><title>Invoice</title></head><body></body></html>');
+      printDocument.close();
+
+      const style = printDocument.createElement('style');
+      style.textContent = '@page{size:A4 portrait;margin:0}html,body{width:210mm;height:297mm;margin:0;padding:0;overflow:hidden}body{display:flex;align-items:center;justify-content:center}img{display:block;width:210mm;height:297mm;object-fit:contain}';
+      printDocument.head.appendChild(style);
+
+      const image = printDocument.createElement('img');
+      image.alt = `Invoice ${sale.ID}`;
+      image.onload = () => {
+        const printWindow = printFrame?.contentWindow;
+        if (!printWindow || !printFrame) {
+          console.error('Invoice print window is unavailable.');
+          printFrame?.remove();
+          printFrame = null;
+          setBusy(false);
+          return;
+        }
+
+        let cleanupTimer = 0;
+        const cleanup = () => {
+          window.clearTimeout(cleanupTimer);
+          printWindow.removeEventListener('afterprint', cleanup);
+          printFrame?.remove();
+          printFrame = null;
+          setBusy(false);
+        };
+        printWindow.addEventListener('afterprint', cleanup, { once: true });
+        cleanupTimer = window.setTimeout(cleanup, 60_000);
+        try {
+          printWindow.focus();
+          printWindow.print();
+        } catch (error) {
+          console.error('Invoice print dialog could not be opened:', error);
+          cleanup();
+          alert('Could not open the invoice print dialog.');
+        }
+      };
+      image.onerror = () => {
+        console.error('Could not load the invoice preview for printing.');
+        printFrame?.remove();
+        printFrame = null;
+        setBusy(false);
+      };
+      printDocument.body.appendChild(image);
+      image.src = canvas.toDataURL('image/png');
+    } catch (error) {
+      console.error('Invoice print preparation failed:', error);
+      printFrame?.remove();
+      setBusy(false);
+      alert('Could not prepare the invoice for printing.');
+    }
   };
 
   const handleDownloadPdf = async () => {
@@ -523,8 +559,8 @@ export function DigitalInvoiceModal({
                 <Button variant="outline" size="sm" onClick={handleShareOnWhatsApp} disabled={busy} className="gap-1.5 text-xs font-bold text-green-700 border-green-300 hover:bg-green-50">
                   <MessageCircle className="h-3.5 w-3.5" /> WhatsApp PDF
                 </Button>
-              <Button size="sm" onClick={handlePrint} className="gap-1.5 text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white">
-                <Printer className="h-3.5 w-3.5" /> Print A4
+              <Button size="sm" onClick={handlePrint} disabled={busy} className="gap-1.5 text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white">
+                <Printer className="h-3.5 w-3.5" /> {busy ? 'Preparing...' : 'Print A4'}
               </Button>
             </div>
           </div>
