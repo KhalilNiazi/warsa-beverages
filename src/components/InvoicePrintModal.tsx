@@ -72,7 +72,7 @@ export function InvoicePrintModal({ sale, outlets, inventory, isOpen, onClose }:
   })() : '4/16/2026 14:51';
 
   // Always include all 4 canonical items (500ml, 1500ml, 19 L, Promo 500ml); unadded items show 0
-  const processedItems = buildStandardInvoicePrintItems(sale, inventory);
+  const processedItems = buildStandardInvoicePrintItems(sale, inventory, outlet);
 
   // Printing logic: Guarantees BOTH Original (top) & Customer Copy (bottom) on the SAME 1 PAGE
   const handlePrint = (singleSheet: boolean = true) => {

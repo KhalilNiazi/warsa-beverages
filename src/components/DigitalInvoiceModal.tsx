@@ -166,7 +166,7 @@ export function DigitalInvoiceModal({
   );
   const outletCode = outlet?.Code || sale.OutletCode || '-';
   const balance = outlet?.OpeningBalance !== undefined ? outlet.OpeningBalance : sale.GrandTotal;
-  const items = buildStandardInvoicePrintItems(sale, inventory);
+  const items = buildStandardInvoicePrintItems(sale, inventory, outlet);
 
   let dateText = sale.Date || '';
   try { if (sale.Date) dateText = format(new Date(sale.Date), 'dd-MMM-yyyy'); } catch { /* keep raw */ }
@@ -177,12 +177,15 @@ export function DigitalInvoiceModal({
   const totalGross = base.reduce((n, it) => n + grossOf(it), 0);
   const rows = base.map(it => {
     const gross = grossOf(it);
-    const offer = totalGross > 0 ? Math.round((discount * gross) / totalGross) : 0;
+    const offer = Number(it.tradeOffer) || 0;
     return { it, gross, offer, net: gross - offer };
   });
   const totalQty = rows.reduce((n, r) => n + (r.it.isPromo ? 0 : Number(r.it.qty || 0)), 0);
-  const totalOffer = rows.reduce((n, r) => n + r.offer, 0);
-  const net = totalGross - totalOffer;
+  const totalTradeOffer = rows.reduce((n, r) => n + r.offer, 0);
+  const subtotalNet = totalGross - totalTradeOffer;
+  const additionalDiscount = Math.max(0, discount);
+  const totalOffer = totalTradeOffer + additionalDiscount;
+  const net = Math.max(0, subtotalNet - additionalDiscount);
   const taxAmount = Math.round(net * taxRate) / 100;
   const grand = net + taxAmount;
   const opening = Number(outlet?.OpeningBalance) || 0;
@@ -256,21 +259,23 @@ export function DigitalInvoiceModal({
               <td className="r">{fmt(r.net)}</td>
             </tr>
           ))}
-          {['Sub Total:', 'Grand Total:'].map(label => (
+          {['Sub Total:', 'Grand Total:'].map(label => {
+            const isGrandTotal = label === 'Grand Total:';
+            return (
             <tr key={label} className="t">
               <td className="tl">{label}</td>
               <td className="c">{money(totalQty)}</td><td></td>
               <td className="r">{money(totalGross)}</td>
-              <td className="r">{fmt(totalOffer)}</td>
-              <td className="r">{fmt(net)}</td>
+              <td className="r">{fmt(isGrandTotal ? totalOffer : totalTradeOffer)}</td>
+              <td className="r">{fmt(isGrandTotal ? net : subtotalNet)}</td>
             </tr>
-          ))}
+          );})}
         </tbody>
       </table>
 
       <table className="dinv-sum">
         <tbody>
-          <tr><td>Less Additional Discount</td><td>0.00</td></tr>
+          <tr><td>Less Additional Discount</td><td>{fmt(additionalDiscount)}</td></tr>
           <tr><td>GST {taxRate.toFixed(2)} %</td><td>{fmt(taxAmount)}</td></tr>
           <tr><td>Advance Tax 0.00 %</td><td>0.00</td></tr>
           <tr className="g"><td>Net Receivable</td><td>{fmt(grand)}</td></tr>

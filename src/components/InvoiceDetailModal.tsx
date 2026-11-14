@@ -125,7 +125,7 @@ export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {buildStandardInvoicePrintItems(invoice, inventory).map((item, idx) => {
+                  {buildStandardInvoicePrintItems(invoice, inventory, outletsList.find(o => o.Name === invoice.OutletName)).map((item, idx) => {
                     const isQtyZero = item.qty === 0 || item.qty === '0';
                     return (
                       <tr key={idx} className={item.isPromo ? "bg-emerald-50/60" : undefined}>

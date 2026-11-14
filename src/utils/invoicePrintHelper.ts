@@ -1,10 +1,11 @@
-import { InventoryItem, SaleRecord } from '@/src/types';
+import { InventoryItem, Outlet, SaleRecord } from '@/src/types';
 
 export interface ProcessedInvoiceItem {
   num: number;
   desc: string;
   qty: number | string;
   price: number | string;
+  tradeOffer: number;
   amount: number | string;
   isPromo: boolean;
   isAlt: boolean;
@@ -17,7 +18,8 @@ export interface ProcessedInvoiceItem {
  */
 export function buildStandardInvoicePrintItems(
   sale: SaleRecord,
-  inventory: InventoryItem[] = []
+  inventory: InventoryItem[] = [],
+  outlet?: Outlet
 ): ProcessedInvoiceItem[] {
   const rawItems = sale.Items || [];
 
@@ -79,17 +81,31 @@ export function buildStandardInvoicePrintItems(
 
     return inventory.find(matchesSize);
   };
-  const productPrice = (saleItem: typeof item500, size: '500' | '1500' | '5l' | '19') => {
+  const productPrices = (saleItem: typeof item500, size: '500' | '1500' | '5l' | '19') => {
+    const inventoryItem = inventoryFor(saleItem, size);
+    const warehousePrice = Number(inventoryItem?.Price) || 0;
+    const customRates = outlet?.CustomRates || {};
+    const customRate = inventoryItem
+      ? customRates[inventoryItem.ID] ?? customRates[inventoryItem.SKU]
+      : undefined;
+    const parsedCustomRate = Number(customRate);
     const soldPrice = Number(saleItem?.Price);
-    if (Number.isFinite(soldPrice) && soldPrice > 0) return soldPrice;
-    const stockPrice = Number(inventoryFor(saleItem, size)?.Price);
-    return Number.isFinite(stockPrice) && stockPrice > 0 ? stockPrice : 0;
+    const outletPrice = customRate !== undefined && Number.isFinite(parsedCustomRate)
+      ? parsedCustomRate
+      : Number.isFinite(soldPrice) && saleItem
+        ? soldPrice
+        : warehousePrice;
+    return {
+      warehousePrice,
+      outletPrice,
+      tradeOffer: warehousePrice - outletPrice
+    };
   };
 
-  const price500 = productPrice(item500, '500');
-  const price1500 = productPrice(item1500, '1500');
-  const price5L = productPrice(item5L, '5l');
-  const price19L = productPrice(item19L, '19');
+  const prices500 = productPrices(item500, '500');
+  const prices1500 = productPrices(item1500, '1500');
+  const prices5L = productPrices(item5L, '5l');
+  const prices19L = productPrices(item19L, '19');
 
   // Quantities: if not added by shopkeeper, show 0
   const qty500 = item500 ? (item500.Quantity ?? item500.BookedQty ?? (item500 as any).Qty ?? 0) : 0;
@@ -106,17 +122,18 @@ export function buildStandardInvoicePrintItems(
       : sale.HasPromo ? 1 : 0;
 
   // Amounts
-  const amount500 = qty500 > 0 ? (item500?.Amount ?? (Number(qty500) * Number(price500))) : 0;
-  const amount1500 = qty1500 > 0 ? (item1500?.Amount ?? (Number(qty1500) * Number(price1500))) : 0;
-  const amount5L = qty5L > 0 ? (item5L?.Amount ?? (Number(qty5L) * Number(price5L))) : 0;
-  const amount19L = qty19L > 0 ? (item19L?.Amount ?? (Number(qty19L) * Number(price19L))) : 0;
+  const amount500 = qty500 > 0 ? Number(qty500) * prices500.outletPrice : 0;
+  const amount1500 = qty1500 > 0 ? Number(qty1500) * prices1500.outletPrice : 0;
+  const amount5L = qty5L > 0 ? Number(qty5L) * prices5L.outletPrice : 0;
+  const amount19L = qty19L > 0 ? Number(qty19L) * prices19L.outletPrice : 0;
 
   return [
     {
       num: 1,
       desc: '500ML',
       qty: qty500,
-      price: price500,
+      price: prices500.warehousePrice,
+      tradeOffer: Number(qty500) * prices500.tradeOffer,
       amount: amount500,
       isPromo: false,
       isAlt: false
@@ -125,7 +142,8 @@ export function buildStandardInvoicePrintItems(
       num: 2,
       desc: '1500ML',
       qty: qty1500,
-      price: price1500,
+      price: prices1500.warehousePrice,
+      tradeOffer: Number(qty1500) * prices1500.tradeOffer,
       amount: amount1500,
       isPromo: false,
       isAlt: true
@@ -134,7 +152,8 @@ export function buildStandardInvoicePrintItems(
       num: 3,
       desc: '5L',
       qty: qty5L,
-      price: price5L,
+      price: prices5L.warehousePrice,
+      tradeOffer: Number(qty5L) * prices5L.tradeOffer,
       amount: amount5L,
       isPromo: false,
       isAlt: false
@@ -143,7 +162,8 @@ export function buildStandardInvoicePrintItems(
       num: 4,
       desc: '19 L',
       qty: qty19L,
-      price: price19L,
+      price: prices19L.warehousePrice,
+      tradeOffer: Number(qty19L) * prices19L.tradeOffer,
       amount: amount19L,
       isPromo: false,
       isAlt: false
@@ -153,6 +173,7 @@ export function buildStandardInvoicePrintItems(
       desc: 'PROMO 500ML',
       qty: promoQty,
       price: promoQty > 0 ? 'FREE' : 0,
+      tradeOffer: 0,
       amount: promoQty > 0 ? 'FREE' : 0,
       isPromo: true,
       isAlt: true
