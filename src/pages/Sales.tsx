@@ -618,7 +618,7 @@ export function Sales() {
 
         <ResponsiveDialog 
           isOpen={isRecording} 
-          onClose={() => { setIsRecording(false); setEditingSaleId(null); setDeliveryManName(''); setDeliveryManPhone(''); setIsPromoEnabled(false); setPromoCasesCount(1); }}
+          onClose={() => { setIsRecording(false); setEditingSaleId(null); setDeliveryManName(''); setIsPromoEnabled(false); setPromoCasesCount(1); }}
           title={editingSaleId ? "Edit Order" : "Book New Order"}
         >
           <form onSubmit={handleRecordSale} className="space-y-6 pb-12 md:pb-0">
@@ -1063,7 +1063,7 @@ export function Sales() {
             </div>
             
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-6">
-              <Button type="button" variant="outline" onClick={() => { setIsRecording(false); setEditingSaleId(null); setDeliveryManName(''); setDeliveryManPhone(''); setIsPromoEnabled(false); setPromoCasesCount(1); }}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => { setIsRecording(false); setEditingSaleId(null); setDeliveryManName(''); setIsPromoEnabled(false); setPromoCasesCount(1); }}>Cancel</Button>
               <Button type="submit" disabled={regularItems.length === 0} className="bg-red-600 hover:bg-red-700 text-white">
                 {editingSaleId ? "Update Order" : "Save & Book Order"}
               </Button>
