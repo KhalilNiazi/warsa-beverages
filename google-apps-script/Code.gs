@@ -43,6 +43,7 @@ var ALLOWED_ACTIONS = [
   'getRoutes', 'saveRoute', 'deleteRoute',
   'getUsers', 'saveUser', 'deleteUser',
   'getOrderBookers', 'saveOrderBooker', 'deleteOrderBooker',
+  'getDeliveryMen', 'saveDeliveryMan', 'deleteDeliveryMan',
   'getAuditLogs', 'saveAuditLog'
 ];
 
@@ -60,6 +61,7 @@ var SHEETS = {
   ROUTES: 'Routes',
   USERS: 'AppUsers',
   ORDER_BOOKERS: 'OrderBookers',
+  DELIVERY_MEN: 'DeliveryMen',
   SETTINGS: 'Settings',
   AUDIT: 'AuditLogs'
 };
@@ -138,6 +140,10 @@ SCHEMAS[SHEETS.USERS] = [
 
 SCHEMAS[SHEETS.ORDER_BOOKERS] = [
   'ID', 'Name', 'Phone', 'AssignedRoutes', 'CreatedAt'
+];
+
+SCHEMAS[SHEETS.DELIVERY_MEN] = [
+  'ID', 'Name', 'CreatedAt'
 ];
 
 SCHEMAS[SHEETS.SETTINGS] = [
@@ -358,6 +364,11 @@ function handleRequest(e, isPost) {
     else if (action === 'saveOrderBooker') response = writeSheetRow(SHEETS.ORDER_BOOKERS, payload, 'ID', authUser);
     else if (action === 'deleteOrderBooker') response = deleteSheetRow(SHEETS.ORDER_BOOKERS, extractId(payload), 'ID', authUser, payload && payload._mutationId);
 
+    // Delivery Men
+    else if (action === 'getDeliveryMen') response = { success: true, data: readSheetRows(SHEETS.DELIVERY_MEN) };
+    else if (action === 'saveDeliveryMan') response = writeSheetRow(SHEETS.DELIVERY_MEN, payload, 'ID', authUser);
+    else if (action === 'deleteDeliveryMan') response = deleteSheetRow(SHEETS.DELIVERY_MEN, extractId(payload), 'ID', authUser, payload && payload._mutationId);
+
     // Audit Logs
     else if (action === 'getAuditLogs') response = { success: true, data: readSheetRows(SHEETS.AUDIT) };
     else if (action === 'saveAuditLog') response = writeSheetRow(SHEETS.AUDIT, payload, 'Timestamp', authUser);
@@ -524,7 +535,8 @@ function authorizeUserRole(user, action, payload) {
     getStockInward: ['ASM', 'WAREHOUSE_MANAGER', 'MANAGEMENT'],
     getStockMovements: ['ASM', 'SALESMAN', 'WAREHOUSE_MANAGER', 'MANAGEMENT'],
     getRoutes: ['ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'MANAGEMENT'],
-    getOrderBookers: ['ASM', 'MANAGEMENT']
+    getOrderBookers: ['ASM', 'MANAGEMENT'],
+    getDeliveryMen: ['ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'MANAGEMENT']
   };
   if (readRoles[action] && readRoles[action].indexOf(user.role) === -1) {
     return { allowed: false, reason: 'Your role is not permitted to read this collection' };
@@ -549,6 +561,7 @@ function authorizeUserRole(user, action, payload) {
     saveStockMovement: ['SALESMAN', 'WAREHOUSE_MANAGER'],
     saveRoute: [],
     saveOrderBooker: [],
+    saveDeliveryMan: [],
     saveUser: []
   };
   if (writeRoles[action] && writeRoles[action].indexOf(user.role) === -1) {
@@ -911,7 +924,8 @@ function getAllData() {
       stockMovements: readSheetRows(SHEETS.STOCK_MOVEMENTS),
       routes: readSheetRows(SHEETS.ROUTES),
       users: readSheetRows(SHEETS.USERS),
-      orderBookers: readSheetRows(SHEETS.ORDER_BOOKERS)
+      orderBookers: readSheetRows(SHEETS.ORDER_BOOKERS),
+      deliveryMen: readSheetRows(SHEETS.DELIVERY_MEN)
     }
   };
 }
@@ -946,6 +960,7 @@ function handleBatchMutations(mutations, authUser) {
     else if (m.action === 'saveStockMovement') result = writeSheetRow(SHEETS.STOCK_MOVEMENTS, mutationData, 'ID', authUser);
     else if (m.action === 'saveRoute') result = writeSheetRow(SHEETS.ROUTES, mutationData, 'ID', authUser);
     else if (m.action === 'saveOrderBooker') result = writeSheetRow(SHEETS.ORDER_BOOKERS, mutationData, 'ID', authUser);
+    else if (m.action === 'saveDeliveryMan') result = writeSheetRow(SHEETS.DELIVERY_MEN, mutationData, 'ID', authUser);
     else if (m.action === 'deleteSale' || m.action === 'deleteSaleRecord') result = deleteSheetRow(SHEETS.SALES, extractId(mutationData), 'ID', authUser, m.mutationId);
     else if (m.action === 'deleteInventory' || m.action === 'deleteInventoryItem') result = deleteSheetRow(SHEETS.INVENTORY, extractId(mutationData), 'ID', authUser, m.mutationId);
     else if (m.action === 'deleteOutlet') result = deleteSheetRow(SHEETS.OUTLETS, extractId(mutationData), 'ID', authUser, m.mutationId);
@@ -955,6 +970,7 @@ function handleBatchMutations(mutations, authUser) {
     else if (m.action === 'deleteRoute') result = deleteSheetRow(SHEETS.ROUTES, extractId(mutationData), 'ID', authUser, m.mutationId);
     else if (m.action === 'deleteUser') result = deleteSheetRow(SHEETS.USERS, extractId(mutationData), 'id', authUser, m.mutationId);
     else if (m.action === 'deleteOrderBooker') result = deleteSheetRow(SHEETS.ORDER_BOOKERS, extractId(mutationData), 'ID', authUser, m.mutationId);
+    else if (m.action === 'deleteDeliveryMan') result = deleteSheetRow(SHEETS.DELIVERY_MEN, extractId(mutationData), 'ID', authUser, m.mutationId);
 
     if (result.success) processed++;
     else failures.push({ index: i, error: result.error || 'Mutation failed' });
@@ -985,6 +1001,7 @@ function syncAll(data, authUser) {
   if (Array.isArray(data.routes)) replaceSheetTable(SHEETS.ROUTES, data.routes, 'ID', authUser);
   if (Array.isArray(data.users)) replaceSheetTable(SHEETS.USERS, data.users, 'id', authUser);
   if (Array.isArray(data.orderBookers)) replaceSheetTable(SHEETS.ORDER_BOOKERS, data.orderBookers, 'ID', authUser);
+  if (Array.isArray(data.deliveryMen)) replaceSheetTable(SHEETS.DELIVERY_MEN, data.deliveryMen, 'ID', authUser);
 
   return { success: true, message: 'All cloud sheets synchronized successfully' };
 }

@@ -255,6 +255,7 @@ export interface Outlet {
   ContactNumber: string;
   OwnerName: string;
   OB: string;
+  DeliveryManName?: string;
   CustomerType?: 'Retailer' | 'Wholesaler' | 'Corporate' | 'Distributor';
   Status: 'Active' | 'Inactive' | 'Temporarily Closed';
   CustomRates: Record<string, number>;
@@ -295,6 +296,11 @@ export interface OrderBooker {
   Name: string;
   Phone?: string;
   AssignedRoutes?: string[];
+}
+
+export interface DeliveryMan {
+  ID: string;
+  Name: string;
 }
 
 export interface ReturnInspectionRecord {

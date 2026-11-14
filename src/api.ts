@@ -4,6 +4,7 @@ import {
   Outlet, 
   PaymentRecord, 
   OrderBooker, 
+  DeliveryMan,
   DispatchLoad, 
   DeliveryStatus, 
   RejectionReason, 
@@ -2339,6 +2340,41 @@ export const deleteOrderBooker = async (id: string): Promise<void> => {
   triggerCloudSync('deleteOrderBooker', { ID: id });
 };
 
+// --- DELIVERY MEN ---
+const MOCK_DELIVERY_MEN_KEY = 'warsa_mock_delivery_men_v1';
+
+export const fetchDeliveryMen = async (forceRefresh: boolean = false): Promise<DeliveryMan[]> => {
+  await ensureDataFetchedFromGoogleSheet(forceRefresh);
+  try {
+    const data = JSON.parse(localStorage.getItem(MOCK_DELIVERY_MEN_KEY) || '[]');
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+};
+
+export const saveDeliveryMan = async (deliveryMan: DeliveryMan): Promise<void> => {
+  assertCanModifyData('save or edit delivery men');
+  const deliveryMen = await fetchDeliveryMen();
+  const savedDeliveryMan = {
+    ...deliveryMan,
+    ID: deliveryMan.ID || Date.now().toString(),
+    Name: sanitizeInput(deliveryMan.Name.trim())
+  };
+  const index = deliveryMen.findIndex(item => item.ID === savedDeliveryMan.ID);
+  if (index >= 0) deliveryMen[index] = savedDeliveryMan;
+  else deliveryMen.push(savedDeliveryMan);
+  localStorage.setItem(MOCK_DELIVERY_MEN_KEY, JSON.stringify(deliveryMen));
+  triggerCloudSync('saveDeliveryMan', savedDeliveryMan);
+};
+
+export const deleteDeliveryMan = async (id: string): Promise<void> => {
+  assertCanModifyData('delete delivery men');
+  const deliveryMen = await fetchDeliveryMen();
+  localStorage.setItem(MOCK_DELIVERY_MEN_KEY, JSON.stringify(deliveryMen.filter(item => item.ID !== id)));
+  triggerCloudSync('deleteDeliveryMan', { ID: id });
+};
+
 // --- DAILY CLOSINGS ---
 export const fetchDailyClosings = async (forceRefresh: boolean = false): Promise<DailyClosingRecord[]> => {
   await ensureDataFetchedFromGoogleSheet(forceRefresh);
@@ -2902,7 +2938,8 @@ export const pushAllDataToGoogleSheet = async (customUrl?: string): Promise<Goog
     stockMovements: JSON.parse(localStorage.getItem(MOCK_MOVEMENTS_KEY) || '[]'),
     routes: getMockRoutes(),
     users: getAppUsers(),
-    orderBookers: JSON.parse(localStorage.getItem(MOCK_OBS_KEY) || '[]')
+    orderBookers: JSON.parse(localStorage.getItem(MOCK_OBS_KEY) || '[]'),
+    deliveryMen: JSON.parse(localStorage.getItem(MOCK_DELIVERY_MEN_KEY) || '[]')
   };
 
   const res = await callGoogleAppsScript('syncAll', payload, customUrl);
@@ -3006,6 +3043,10 @@ export const pullAllDataFromGoogleSheet = async (customUrl?: string): Promise<{
     localStorage.setItem(MOCK_OBS_KEY, JSON.stringify(data.orderBookers));
     await replaceStoreInIDB(STORES.ORDER_BOOKERS, data.orderBookers).catch(() => {});
     counts['OrderBookers'] = data.orderBookers.length;
+  }
+  if (Array.isArray(data.deliveryMen)) {
+    localStorage.setItem(MOCK_DELIVERY_MEN_KEY, JSON.stringify(data.deliveryMen));
+    counts['DeliveryMen'] = data.deliveryMen.length;
   }
 
   const now = new Date().toISOString();
@@ -3221,6 +3262,9 @@ export const pullAllDataFromFirestoreBackend = async () => {
     // 10. Order Bookers
     if (result.data.orderBookers && result.data.orderBookers.length > 0) {
       localStorage.setItem(MOCK_OBS_KEY, JSON.stringify(result.data.orderBookers));
+    }
+    if (result.data.deliveryMen) {
+      localStorage.setItem(MOCK_DELIVERY_MEN_KEY, JSON.stringify(result.data.deliveryMen));
     }
     // 11. Stock Inward
     if (result.data.stockInward && result.data.stockInward.length > 0) {

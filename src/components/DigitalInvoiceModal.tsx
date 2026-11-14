@@ -177,14 +177,14 @@ export function DigitalInvoiceModal({
   const totalGross = base.reduce((n, it) => n + grossOf(it), 0);
   const rows = base.map(it => {
     const gross = grossOf(it);
-    const offer = Number(it.tradeOffer) || 0;
+    const offer = 0;
     return { it, gross, offer, net: gross - offer };
   });
   const totalQty = rows.reduce((n, r) => n + (r.it.isPromo ? 0 : Number(r.it.qty || 0)), 0);
   const totalTradeOffer = rows.reduce((n, r) => n + r.offer, 0);
   const subtotalNet = totalGross - totalTradeOffer;
   const additionalDiscount = Math.max(0, discount);
-  const totalOffer = totalTradeOffer + additionalDiscount;
+  const totalOffer = totalTradeOffer;
   const net = Math.max(0, subtotalNet - additionalDiscount);
   const taxAmount = Math.round(net * taxRate) / 100;
   const grand = net + taxAmount;
@@ -267,7 +267,7 @@ export function DigitalInvoiceModal({
               <td className="c">{money(totalQty)}</td><td></td>
               <td className="r">{money(totalGross)}</td>
               <td className="r">{fmt(isGrandTotal ? totalOffer : totalTradeOffer)}</td>
-              <td className="r">{fmt(isGrandTotal ? net : subtotalNet)}</td>
+              <td className="r">{fmt(subtotalNet)}</td>
             </tr>
           );})}
         </tbody>

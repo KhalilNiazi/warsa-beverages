@@ -83,7 +83,6 @@ export function buildStandardInvoicePrintItems(
   };
   const productPrices = (saleItem: typeof item500, size: '500' | '1500' | '5l' | '19') => {
     const inventoryItem = inventoryFor(saleItem, size);
-    const warehousePrice = Number(inventoryItem?.Price) || 0;
     const customRates = outlet?.CustomRates || {};
     const customRate = inventoryItem
       ? customRates[inventoryItem.ID] ?? customRates[inventoryItem.SKU]
@@ -94,11 +93,10 @@ export function buildStandardInvoicePrintItems(
       ? parsedCustomRate
       : Number.isFinite(soldPrice) && saleItem
         ? soldPrice
-        : warehousePrice;
+        : 0;
     return {
-      warehousePrice,
       outletPrice,
-      tradeOffer: warehousePrice - outletPrice
+      tradeOffer: 0
     };
   };
 
@@ -132,8 +130,8 @@ export function buildStandardInvoicePrintItems(
       num: 1,
       desc: '500ML',
       qty: qty500,
-      price: prices500.warehousePrice,
-      tradeOffer: Number(qty500) * prices500.tradeOffer,
+      price: prices500.outletPrice,
+      tradeOffer: 0,
       amount: amount500,
       isPromo: false,
       isAlt: false
@@ -142,8 +140,8 @@ export function buildStandardInvoicePrintItems(
       num: 2,
       desc: '1500ML',
       qty: qty1500,
-      price: prices1500.warehousePrice,
-      tradeOffer: Number(qty1500) * prices1500.tradeOffer,
+      price: prices1500.outletPrice,
+      tradeOffer: 0,
       amount: amount1500,
       isPromo: false,
       isAlt: true
@@ -152,8 +150,8 @@ export function buildStandardInvoicePrintItems(
       num: 3,
       desc: '5L',
       qty: qty5L,
-      price: prices5L.warehousePrice,
-      tradeOffer: Number(qty5L) * prices5L.tradeOffer,
+      price: prices5L.outletPrice,
+      tradeOffer: 0,
       amount: amount5L,
       isPromo: false,
       isAlt: false
@@ -162,8 +160,8 @@ export function buildStandardInvoicePrintItems(
       num: 4,
       desc: '19 L',
       qty: qty19L,
-      price: prices19L.warehousePrice,
-      tradeOffer: Number(qty19L) * prices19L.tradeOffer,
+      price: prices19L.outletPrice,
+      tradeOffer: 0,
       amount: amount19L,
       isPromo: false,
       isAlt: false
