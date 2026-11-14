@@ -1532,6 +1532,10 @@ function normalizePulledSales(sales: any[]): SaleRecord[] {
       try { items = JSON.parse(items); } catch { items = []; }
     }
     if (!Array.isArray(items)) items = [];
+    const promoItem = items.find((item: any) =>
+      item?.IsPromo || (Number(item?.Price) === 0 && /promo/i.test(`${item?.ProductName || ''} ${item?.PromoScheme || ''}`))
+    );
+    const promoQuantity = Number(s.PromoFreeCases ?? promoItem?.BookedQty ?? promoItem?.Quantity) || 0;
 
     const totalAmount = Number(s.TotalAmount) || 0;
     const actualGrandTotal = Number(s.ActualGrandTotal ?? s.GrandTotal ?? totalAmount) || 0;
@@ -1561,6 +1565,11 @@ function normalizePulledSales(sales: any[]): SaleRecord[] {
       Discount: Number(s.Discount) || 0,
       CashCollected: cashCollected,
       CreditAmount: creditAmount,
+      HasPromo: Boolean(s.HasPromo || promoItem || promoQuantity > 0),
+      PromoDescription: s.PromoDescription || promoItem?.PromoScheme || undefined,
+      PromoFreeCases: promoQuantity,
+      PromoProductID: s.PromoProductID || promoItem?.ProductID || undefined,
+      PromoProductName: s.PromoProductName || promoItem?.ProductName?.replace(/\s*\[PROMO FREE\]\s*/i, '') || undefined,
       PaymentStatus: paymentStatus,
       DeliveryStatus: s.DeliveryStatus || 'DELIVERED',
       Items: items.length > 0 ? items : [{

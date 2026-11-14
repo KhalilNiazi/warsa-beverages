@@ -22,8 +22,8 @@ export interface InvoicePromoProductOption {
 
 const PRODUCT_SIZES: Array<{ size: InvoiceProductSize; label: string; matches: RegExp }> = [
   { size: '500ml', label: '500 ml', matches: /\b500\s*ml\b|\b0\.5\s*l\b/i },
-  { size: '1500ml', label: '1.5 L', matches: /\b1500\s*ml\b|\b1[.,]5\s*l\b/i },
-  { size: '5l', label: '5 L', matches: /\b5000\s*ml\b|\b5\s*l\b/i },
+  { size: '1500ml', label: '1.5 L', matches: /\b1500\s*ml\b|\b1[.,]5\s*(?:l|liter|litre)s?\b/i },
+  { size: '5l', label: '5 L', matches: /\b5000\s*ml\b|\b5\s*(?:l|liter|litre)s?\b/i },
   { size: '19l', label: '19 L', matches: /\b19\s*(?:l|liter|litre)s?\b/i }
 ];
 
@@ -35,7 +35,7 @@ const getProductSize = (text: string): InvoiceProductSize | undefined =>
 
 export function getInvoicePromoProductOptions(inventory: InventoryItem[]): InvoicePromoProductOption[] {
   return PRODUCT_SIZES.flatMap(option => {
-    const product = inventory.find(item => getProductSize(getProductText(item)) === option.size);
+    const product = inventory.find(item => !/\bpromo\b/i.test(getProductText(item)) && getProductSize(getProductText(item)) === option.size);
     return product ? [{ size: option.size, label: option.label, product }] : [];
   });
 }

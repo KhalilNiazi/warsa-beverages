@@ -298,7 +298,7 @@ export function Sales() {
     setOrderItems(updated);
   };
 
-  // Compute Totals & Promotional Scheme (15 Cases = 1 Free 500ml PET)
+  // Compute totals and the selected promotional scheme.
   const selectedOutlet = outlets.find(o => o.ID === selectedOutletId);
   const regularItems: InvoiceItem[] = orderItems.map(item => {
     const p = inventory.find(i => i.ID === item.product);
@@ -335,7 +335,7 @@ export function Sales() {
   const isPromoApplied = isPromoEnabled && promoCasesCount > 0;
   const freePromoCases = isPromoApplied ? promoCasesCount : 0;
   const promoSchemeTitle = freePromoCases === 1 
-    ? `1 Free ${promoProductLabel} Promotional Scheme` 
+    ? `1 Free ${promoProductLabel} Promotional Scheme`
     : `${freePromoCases} Free ${promoProductLabel} Promotional Scheme`;
 
   const promoItem: InvoiceItem | null = isPromoApplied ? {
@@ -640,7 +640,7 @@ export function Sales() {
 
         <ResponsiveDialog 
           isOpen={isRecording} 
-          onClose={() => { setIsRecording(false); setEditingSaleId(null); setDeliveryManName(''); setIsPromoEnabled(false); setPromoCasesCount(1); }}
+          onClose={() => { setIsRecording(false); setEditingSaleId(null); setDeliveryManName(''); setIsPromoEnabled(false); setPromoCasesCount(1); setPromoProductID(getSettings().defaultPromoProductID || ''); }}
           title={editingSaleId ? "Edit Order" : "Book New Order"}
         >
           <form onSubmit={handleRecordSale} className="space-y-6 pb-12 md:pb-0">
@@ -994,6 +994,7 @@ export function Sales() {
                               {option.label} - {option.product.Name}
                             </option>
                           ))}
+                          {promoProductOptions.length === 0 && <option value="">No eligible promo products in Inventory</option>}
                         </select>
                       </label>
 
@@ -1093,7 +1094,7 @@ export function Sales() {
                 <div className="text-[11px] text-gray-500 text-right pt-0.5 font-medium">
                   {isPromoApplied ? (
                     <span className="text-emerald-700 font-bold">
-                      Truck Dispatched Cases: {totalLoadedCases} cs (including {freePromoCases} free promo 500ml)
+                      Truck Dispatched Cases: {totalLoadedCases} cs (including {freePromoCases} free promo {promoProductLabel})
                     </span>
                   ) : (
                     <span>Total Dispatched Cases: {totalCases} cs</span>
@@ -1103,7 +1104,7 @@ export function Sales() {
             </div>
             
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-6">
-              <Button type="button" variant="outline" onClick={() => { setIsRecording(false); setEditingSaleId(null); setDeliveryManName(''); setIsPromoEnabled(false); setPromoCasesCount(1); }}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => { setIsRecording(false); setEditingSaleId(null); setDeliveryManName(''); setIsPromoEnabled(false); setPromoCasesCount(1); setPromoProductID(getSettings().defaultPromoProductID || ''); }}>Cancel</Button>
               <Button type="submit" disabled={regularItems.length === 0} className="bg-red-600 hover:bg-red-700 text-white">
                 {editingSaleId ? "Update Order" : "Save & Book Order"}
               </Button>
