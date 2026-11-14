@@ -31,6 +31,7 @@ import { InvoiceDetailModal } from '@/src/components/InvoiceDetailModal';
 import { DeliveryStatusModal } from '@/src/components/DeliveryStatusModal';
 import { PrintOrderView } from '@/src/components/PrintOrderView';
 import { DigitalInvoiceModal } from '@/src/components/DigitalInvoiceModal';
+import { InvoicePrintModal } from '@/src/components/InvoicePrintModal';
 import { BookerLoadReportModal } from '@/src/components/BookerLoadReportModal';
 import { BulkDataModal } from '@/src/components/BulkDataModal';
 import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
@@ -60,6 +61,7 @@ export function Sales() {
   
   const [printSale, setPrintSale] = useState<SaleRecord | null>(null);
   const [invoiceToPrint, setInvoiceToPrint] = useState<SaleRecord | null>(null);
+  const [printedInvoiceToShow, setPrintedInvoiceToShow] = useState<SaleRecord | null>(null);
   const [invoiceLabel] = useState<string>(() => {
     try { return getSettings().invoiceButtonLabel || 'Digital Invoice'; }
     catch { return 'Digital Invoice'; }
@@ -1206,6 +1208,9 @@ export function Sales() {
                                   <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={() => triggerPrint(sale)} title={invoiceLabel}>
                                     <Printer className="h-4 w-4 text-red-600 mr-1" /> {invoiceLabel}
                                   </Button>
+                                  <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={() => setPrintedInvoiceToShow(sale)} title="Printed Invoice">
+                                    <FileText className="h-3.5 w-3.5 text-slate-700 mr-1" /> Printed Invoice
+                                  </Button>
                                   {canEdit && (isSuper || isBooker) && (
                                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(sale)} title="Edit Order">
                                       <Edit2 className="h-4 w-4 text-gray-600" />
@@ -1292,6 +1297,9 @@ export function Sales() {
                               <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={() => triggerPrint(sale)} title={invoiceLabel}>
                                 <Printer className="h-3.5 w-3.5 text-red-600 mr-1" /> {invoiceLabel}
                               </Button>
+                              <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={() => setPrintedInvoiceToShow(sale)} title="Printed Invoice">
+                                <FileText className="h-3.5 w-3.5 text-slate-700 mr-1" /> Printed Invoice
+                              </Button>
                               {canEdit && (isSuper || isBooker) && (
                                 <Button variant="ghost" size="sm" className="h-7 px-2 text-gray-600" onClick={() => handleEdit(sale)} title="Edit Order">
                                   <Edit2 className="h-3.5 w-3.5" />
@@ -1341,6 +1349,13 @@ export function Sales() {
         sale={invoiceToPrint}
         outlets={outlets}
         onClose={() => setInvoiceToPrint(null)}
+      />
+
+      <InvoicePrintModal
+        isOpen={!!printedInvoiceToShow}
+        sale={printedInvoiceToShow}
+        outlets={outlets}
+        onClose={() => setPrintedInvoiceToShow(null)}
       />
 
       <BookerLoadReportModal

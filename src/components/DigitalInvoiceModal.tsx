@@ -15,10 +15,12 @@ interface DigitalInvoiceModalProps {
   outlets: Outlet[];
   isOpen: boolean;
   onClose: () => void;
+  exportFormat?: 'png' | 'pdf' | null;
+  onExportComplete?: () => void;
 }
 
-const A4_W = 794; // px at 96dpi (210mm)
-const A4_H = 1123; // px at 96dpi (297mm)
+const A4_W = 1123; // px at 96dpi (297mm)
+const A4_H = 794; // px at 96dpi (210mm)
 
 const money = (v: unknown) => {
   const n = Number(v);
@@ -70,14 +72,21 @@ const SHEET_CSS = `
 .dinv-foot{text-align:center;margin-top:14px;font-size:10px}
 .dinv-print-only{position:fixed;left:-99999px;top:0}
 @media print{
-  @page{size:A4 portrait;margin:0}
+  @page{size:A4 landscape;margin:0}
   body.dinv-printing > *:not(.dinv-print-only){display:none !important}
   body.dinv-printing .dinv-print-only{position:static !important;left:auto !important;display:block !important}
-  .dinv-sheet{width:210mm !important;height:297mm !important;page-break-after:avoid}
+  .dinv-sheet{width:297mm !important;height:210mm !important;page-break-after:avoid}
 }
 `;
 
-export function DigitalInvoiceModal({ sale, outlets, isOpen, onClose }: DigitalInvoiceModalProps) {
+export function DigitalInvoiceModal({
+  sale,
+  outlets,
+  isOpen,
+  onClose,
+  exportFormat = null,
+  onExportComplete
+}: DigitalInvoiceModalProps) {
   const exportRef = useRef<HTMLDivElement>(null);
   const [copy, setCopy] = useState<'ORIGINAL' | 'CUSTOMER'>('ORIGINAL');
   const [scale, setScale] = useState(0.7);
@@ -108,6 +117,38 @@ export function DigitalInvoiceModal({ sale, outlets, isOpen, onClose }: DigitalI
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
   }, []);
+
+  useEffect(() => {
+    if (!isOpen || !sale || !exportFormat) return;
+    const timer = window.setTimeout(async () => {
+      const el = exportRef.current?.querySelector('.dinv-sheet') as HTMLElement | null;
+      if (!el) {
+        console.error('Digital invoice export target is unavailable.');
+        onExportComplete?.();
+        return;
+      }
+
+      try {
+        const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
+        if (exportFormat === 'png') {
+          const anchor = document.createElement('a');
+          anchor.href = canvas.toDataURL('image/png');
+          anchor.download = `Invoice_${sale.ID}_Digital.png`;
+          anchor.click();
+        } else {
+          const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+          pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 297, 210);
+          pdf.save(`Invoice_${sale.ID}_Digital.pdf`);
+        }
+      } catch (err) {
+        console.error(`Digital invoice ${exportFormat.toUpperCase()} export failed:`, err);
+        alert(`Could not download digital invoice ${exportFormat.toUpperCase()}.`);
+      } finally {
+        onExportComplete?.();
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [exportFormat, isOpen, onExportComplete, sale]);
 
   if (!sale) return null;
 
@@ -259,12 +300,30 @@ export function DigitalInvoiceModal({ sale, outlets, isOpen, onClose }: DigitalI
     setBusy(true);
     try {
       const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 297);
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 297, 210);
       pdf.save(`Invoice_${sale.ID}_${copy === 'CUSTOMER' ? 'Customer' : 'Original'}.pdf`);
     } catch (err) {
       console.error('PDF export failed:', err);
       alert('Could not download invoice PDF.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDownloadPng = async () => {
+    const el = exportRef.current?.querySelector('.dinv-sheet') as HTMLElement | null;
+    if (!el) return;
+    setBusy(true);
+    try {
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
+      const anchor = document.createElement('a');
+      anchor.href = canvas.toDataURL('image/png');
+      anchor.download = `Invoice_${sale.ID}_${copy === 'CUSTOMER' ? 'Customer' : 'Original'}.png`;
+      anchor.click();
+    } catch (err) {
+      console.error('PNG export failed:', err);
+      alert('Could not download invoice PNG.');
     } finally {
       setBusy(false);
     }
@@ -303,8 +362,11 @@ export function DigitalInvoiceModal({ sale, outlets, isOpen, onClose }: DigitalI
                   <option value={0}>0%</option><option value={16}>16%</option><option value={18}>18%</option>
                 </select>
               </label>
-              <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={busy} className="gap-1.5 text-xs font-bold">
-                <Download className="h-3.5 w-3.5" /> {busy ? 'Preparing...' : 'Download PDF'}
+                <Button variant="outline" size="sm" onClick={handleDownloadPng} disabled={busy} className="gap-1.5 text-xs font-bold">
+                  <Download className="h-3.5 w-3.5" /> Save PNG
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={busy} className="gap-1.5 text-xs font-bold">
+                  <Download className="h-3.5 w-3.5" /> {busy ? 'Preparing...' : 'Download PDF'}
               </Button>
               <Button size="sm" onClick={handlePrint} className="gap-1.5 text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white">
                 <Printer className="h-3.5 w-3.5" /> Print A4

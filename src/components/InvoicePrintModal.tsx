@@ -11,10 +11,12 @@ import {
   Scissors, 
   Maximize2,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  FileText
 } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
+import { DigitalInvoiceModal } from '@/src/components/DigitalInvoiceModal';
 
 interface InvoicePrintModalProps {
   sale: SaleRecord | null;
@@ -30,6 +32,9 @@ export function InvoicePrintModal({ sale, outlets, isOpen, onClose }: InvoicePri
   const [isExporting, setIsExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'both' | 'original' | 'customer'>('both');
+  const [exportChoice, setExportChoice] = useState<'png' | 'pdf' | null>(null);
+  const [isDigitalInvoiceOpen, setIsDigitalInvoiceOpen] = useState(false);
+  const [digitalExportFormat, setDigitalExportFormat] = useState<'png' | 'pdf' | null>(null);
 
   // Compute responsive default scale based on window width
   useEffect(() => {
@@ -154,6 +159,21 @@ export function InvoicePrintModal({ sale, outlets, isOpen, onClose }: InvoicePri
       alert('Could not download invoice PDF.');
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleChooseExportLayout = (layout: 'digital' | 'printed') => {
+    if (!exportChoice) return;
+    const format = exportChoice;
+    setExportChoice(null);
+
+    if (layout === 'digital') {
+      setDigitalExportFormat(format);
+      setIsDigitalInvoiceOpen(true);
+    } else if (format === 'png') {
+      void handleDownloadImage();
+    } else {
+      void handleDownloadPDF();
     }
   };
 
@@ -529,13 +549,14 @@ export function InvoicePrintModal({ sale, outlets, isOpen, onClose }: InvoicePri
   };
 
   return (
-    <ResponsiveDialog
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`KFM Beverages (WARSA) - Invoice #${sale.ID}`}
-      subtitle="Top: Original Invoice &bull; Bottom: Customer Copy (Double-Decker Layout)"
-      size="full"
-    >
+    <>
+      <ResponsiveDialog
+        isOpen={isOpen}
+        onClose={onClose}
+        title={`KFM Beverages (WARSA) - Invoice #${sale.ID}`}
+        subtitle="Top: Original Invoice &bull; Bottom: Customer Copy (Double-Decker Layout)"
+        size="full"
+      >
       <div className="space-y-3">
         {/* Style Tag containing the exact template styles */}
         <style dangerouslySetInnerHTML={{ __html: getExactCSS() }} />
@@ -629,7 +650,14 @@ export function InvoicePrintModal({ sale, outlets, isOpen, onClose }: InvoicePri
             </Button>
             <Button
               variant="outline"
-              onClick={handleDownloadImage}
+              onClick={() => setIsDigitalInvoiceOpen(true)}
+              className="gap-1.5 h-9 text-xs font-semibold border-slate-300 text-gray-800 bg-white hover:bg-slate-100 cursor-pointer"
+            >
+              <FileText className="w-4 h-4 text-red-600" /> Digital Invoice
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setExportChoice('png')}
               disabled={isExporting}
               className="gap-1.5 h-9 text-xs font-semibold border-slate-300 text-gray-800 bg-white hover:bg-slate-100 cursor-pointer"
             >
@@ -637,7 +665,7 @@ export function InvoicePrintModal({ sale, outlets, isOpen, onClose }: InvoicePri
             </Button>
             <Button
               variant="outline"
-              onClick={handleDownloadPDF}
+              onClick={() => setExportChoice('pdf')}
               disabled={isExporting}
               className="gap-1.5 h-9 text-xs font-semibold border-slate-300 text-gray-800 bg-white hover:bg-slate-100 cursor-pointer"
             >
@@ -652,6 +680,21 @@ export function InvoicePrintModal({ sale, outlets, isOpen, onClose }: InvoicePri
             </Button>
           </div>
         </div>
+
+        {exportChoice && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-3" role="dialog" aria-label="Choose invoice format">
+            <span className="mr-1 text-xs font-semibold text-slate-700">Save which invoice?</span>
+            <Button variant="outline" size="sm" onClick={() => handleChooseExportLayout('digital')} className="text-xs">
+              Digital Invoice
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleChooseExportLayout('printed')} className="text-xs">
+              Printed Invoice
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setExportChoice(null)} className="text-xs">
+              Cancel
+            </Button>
+          </div>
+        )}
 
         {/* Scrollable Stage Viewer with Scale Transform */}
         <div className="warsa-invoice-root border border-gray-300 rounded-xl bg-neutral-200/80 p-3 max-h-[75vh] overflow-auto shadow-inner flex justify-center">
@@ -740,6 +783,21 @@ export function InvoicePrintModal({ sale, outlets, isOpen, onClose }: InvoicePri
           </div>
         </div>
       </div>
-    </ResponsiveDialog>
+      </ResponsiveDialog>
+      <DigitalInvoiceModal
+        isOpen={isDigitalInvoiceOpen}
+        sale={sale}
+        outlets={outlets}
+        exportFormat={digitalExportFormat}
+        onExportComplete={() => {
+          setDigitalExportFormat(null);
+          setIsDigitalInvoiceOpen(false);
+        }}
+        onClose={() => {
+          setDigitalExportFormat(null);
+          setIsDigitalInvoiceOpen(false);
+        }}
+      />
+    </>
   );
 }

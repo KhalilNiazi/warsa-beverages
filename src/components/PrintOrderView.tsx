@@ -211,7 +211,7 @@ export const PrintOrderView = ({ sale, outlets }: { sale: SaleRecord | null, out
     <div id="printable-invoice-page" className="hidden print:flex flex-col items-center w-full warsa-print-page-wrapper">
       <style type="text/css" media="print">
         {`
-          @page { size: A4 portrait; margin: 3mm 4mm; }
+          @page { size: 11in 8.5in; margin: 0; }
           body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; background: white; margin: 0; padding: 0; }
           :root {
             --red:#dd0000;
