@@ -133,7 +133,7 @@ SCHEMAS[SHEETS.ROUTES] = [
 
 SCHEMAS[SHEETS.USERS] = [
   'id', 'name', 'username', 'role', 'roleTitle', 'department', 'phone', 
-  'assignedRoute', 'vehicleNumber', 'allowedPages', 'defaultPage', 'twoFactorEnabled', 'createdAt'
+  'assignedRoute', 'vehicleNumber', 'allowedPages', 'defaultPage', 'modulePermissions', 'twoFactorEnabled', 'createdAt'
 ];
 
 SCHEMAS[SHEETS.ORDER_BOOKERS] = [
@@ -763,6 +763,8 @@ function writeSheetRow(sheetName, item, idKey, authUser) {
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
     sheet = ensureSheetWithSchema(sheetName);
+  } else if (sheetName === SHEETS.USERS) {
+    sheet = ensureSheetWithSchema(sheetName);
   }
 
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -1069,6 +1071,14 @@ function ensureSheetWithSchema(name) {
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(headers);
     formatBrandHeader(sheet, headers.length);
+  }
+  if (name === SHEETS.USERS) {
+    var existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    if (existingHeaders.indexOf('modulePermissions') === -1) {
+      var newColumn = existingHeaders.length + 1;
+      sheet.getRange(1, newColumn).setValue('modulePermissions');
+      formatBrandHeader(sheet, newColumn);
+    }
   }
   return sheet;
 }

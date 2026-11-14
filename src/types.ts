@@ -23,6 +23,10 @@ export type AppPageId =
   | 'settings' 
   | 'orderBookers';
 
+export type ModulePermission = 'OFF' | 'READ' | 'WRITE';
+
+export type ModulePermissions = Partial<Record<AppPageId, ModulePermission>>;
+
 export interface AppUserProfile {
   id: string;
   name: string;
@@ -46,6 +50,7 @@ export interface AppUserProfile {
   phone?: string;
   email?: string;
   allowedPages: AppPageId[];
+  modulePermissions?: ModulePermissions;
   defaultPage: AppPageId;
   isCustom?: boolean;
   lastLoginAt?: string;

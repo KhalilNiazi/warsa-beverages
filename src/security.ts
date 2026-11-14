@@ -389,10 +389,14 @@ export function assertUserAuthorizedForPage(user: AppUserProfile | null, pageId:
     throw new SecurityException('UNAUTHENTICATED', 'Authentication required to access this system module.');
   }
 
-  // Super Admin has universal access
-  if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') return;
+  // Super Admin has universal access; other users may have explicit module grants.
+  if (user.role === 'SUPER_ADMIN') return;
 
-  if (!user.allowedPages || !user.allowedPages.includes(pageId)) {
+  const hasModuleGrant = user.modulePermissions
+    ? user.modulePermissions[pageId] === 'READ' || user.modulePermissions[pageId] === 'WRITE'
+    : !!user.allowedPages?.includes(pageId);
+
+  if (!hasModuleGrant) {
     logSecurityEvent(
       'PRIVILEGE_VIOLATION',
       `User '${user.name}' (${user.role}) attempted unauthorized access to page: '${pageId}'.`,

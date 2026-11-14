@@ -759,7 +759,7 @@ export function Inventory() {
                 <span>Standard Name Format: <span className="font-mono text-red-700">WARSA &lt;Volume&gt;</span></span>
               </div>
               <p className="text-[11px] text-slate-700 leading-relaxed">
-                Accepted naming examples: <strong className="text-red-700">WARSA 500ml</strong> &bull; <strong className="text-red-700">WARSA 1.5L</strong> &bull; <strong className="text-red-700">WARSA 6L</strong> &bull; <strong className="text-red-700">WARSA 19L</strong>
+                Accepted naming examples: <strong className="text-red-700">WARSA 500ml</strong> &bull; <strong className="text-red-700">WARSA 1.5L</strong> &bull; <strong className="text-red-700">WARSA 5L</strong> &bull; <strong className="text-red-700">WARSA 19L</strong>
               </p>
               {canEdit && (
                 <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-red-200/60">
@@ -767,7 +767,7 @@ export function Inventory() {
                   {[
                     { name: 'WARSA 500ml', sku: 'WAR-500ML', size: '500ml', bpc: 24, price: 960 },
                     { name: 'WARSA 1.5L', sku: 'WAR-1.5L', size: '1.5L', bpc: 6, price: 660 },
-                    { name: 'WARSA 6L', sku: 'WAR-6L', size: '6L', bpc: 2, price: 450 },
+                    { name: 'WARSA 5L', sku: 'WAR-5L', size: '5L', bpc: 2, price: 450 },
                     { name: 'WARSA 19L', sku: 'WAR-19L', size: '19L', bpc: 1, price: 220 }
                   ].map((preset) => (
                     <button
@@ -813,13 +813,13 @@ export function Inventory() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-semibold text-gray-700">Size / Volume</label>
-                <span className="text-[10px] text-slate-500">500ml, 1.5L, 6L, 19L</span>
+                <span className="text-[10px] text-slate-500">500ml, 1.5L, 5L, 19L</span>
               </div>
               <Input
                 disabled={!canEdit}
                 value={editingItem.Size || ''}
                 onChange={(e) => setEditingItem({ ...editingItem, Size: e.target.value })}
-                placeholder="e.g. 500ml, 1.5L, 6L, 19L"
+                placeholder="e.g. 500ml, 1.5L, 5L, 19L"
               />
               <span className="text-[10px] text-gray-500 block mt-0.5">Standard bottle packaging volume</span>
             </div>

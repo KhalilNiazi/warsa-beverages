@@ -17,6 +17,8 @@ import {
   AppUserProfile,
   AppUserCredentialInput,
   AppPageId, 
+  ModulePermission,
+  ModulePermissions,
   AuditLog,
   CashSlipRecord,
   CashDenomination,
@@ -95,11 +97,72 @@ const CURRENT_ROLE_KEY = 'warsa_current_role_v3';
 const APP_USERS_KEY = 'warsa_app_users_v3';
 const CURRENT_USER_ID_KEY = 'warsa_current_user_id_v3';
 const CURRENT_USER_PROFILE_KEY = 'warsa_current_user_profile_v3';
+const CURRENT_PAGE_KEY = 'warsa_current_page_v3';
 const MOCK_CASH_SLIPS_KEY = 'warsa_mock_cash_slips_v3';
 
 // Zero Default Users - By default, no sales PIN, bookkeeper password, or username exists.
 // Accounts must be created by the Super Administrator and stored in Firebase Firestore.
 export const DEFAULT_USERS: AppUserProfile[] = [];
+
+export const APP_MODULES: { category: string; pages: { id: AppPageId; label: string }[] }[] = [
+  { category: 'Core Operations', pages: [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'dispatch', label: 'Deliveries & Loading' },
+    { id: 'reconciliation', label: 'Daily Closing (Hisaab)' },
+    { id: 'cashSlipBook', label: 'Cash Slip Book' }
+  ] },
+  { category: 'Inventory & Orders', pages: [
+    { id: 'inventory', label: 'Warehouse Stock' },
+    { id: 'sales', label: 'Booked Orders' },
+    { id: 'reports', label: 'Daily Sales Report' }
+  ] },
+  { category: 'Accounts & Khata', pages: [
+    { id: 'outlets', label: 'Shops & Customers' },
+    { id: 'ledger', label: 'Customer Ledger & Cash' },
+    { id: 'orderBookers', label: 'Order Bookers (Sales)' }
+  ] },
+  { category: 'Administration', pages: [
+    { id: 'settings', label: 'Settings & Security' }
+  ] }
+];
+
+const ROLE_DEFAULT_PAGES: Record<UserRole, AppPageId[]> = {
+  SUPER_ADMIN: ['dashboard', 'dispatch', 'reconciliation', 'cashSlipBook', 'inventory', 'sales', 'reports', 'outlets', 'ledger', 'orderBookers', 'settings'],
+  ADMIN: ['dashboard', 'dispatch', 'reconciliation', 'cashSlipBook', 'inventory', 'sales', 'reports', 'outlets', 'ledger', 'orderBookers', 'settings'],
+  ASM: ['dashboard', 'reconciliation', 'reports', 'sales', 'inventory', 'outlets', 'ledger', 'cashSlipBook', 'dispatch'],
+  ORDER_BOOKER: ['sales', 'outlets', 'ledger', 'dispatch'],
+  SALESMAN: ['sales', 'dispatch', 'cashSlipBook', 'reports'],
+  DRIVER: ['dashboard', 'sales', 'dispatch'],
+  WAREHOUSE_MANAGER: ['dashboard', 'sales', 'dispatch'],
+  ACCOUNTS: ['dashboard', 'sales', 'dispatch'],
+  MANAGEMENT: ['dashboard', 'sales', 'dispatch'],
+  UNASSIGNED: []
+};
+
+const ALL_APP_PAGES = APP_MODULES.flatMap(section => section.pages.map(page => page.id));
+
+export const getDefaultModulePermissions = (role: UserRole): Record<AppPageId, ModulePermission> => {
+  const allowedPages = new Set(ROLE_DEFAULT_PAGES[role]);
+  const permission: ModulePermissions = {};
+  ALL_APP_PAGES.forEach(page => {
+    permission[page] = allowedPages.has(page) ? (role === 'ASM' ? 'READ' : 'WRITE') : 'OFF';
+  });
+  return permission as Record<AppPageId, ModulePermission>;
+};
+
+export const getModulePermission = (user: AppUserProfile | null | undefined, page: AppPageId): ModulePermission => {
+  if (!user) return 'OFF';
+  if (user.role === 'SUPER_ADMIN') return 'WRITE';
+  if (page === 'settings' && user.role !== 'ADMIN') return 'OFF';
+  if (user.modulePermissions) return user.modulePermissions[page] || 'OFF';
+  if (!user.allowedPages?.includes(page)) return 'OFF';
+  return user.role === 'ASM' ? 'READ' : 'WRITE';
+};
+
+export const getUserAllowedPages = (user: AppUserProfile | null | undefined): AppPageId[] => {
+  if (!user) return [];
+  return ALL_APP_PAGES.filter(page => getModulePermission(user, page) !== 'OFF');
+};
 
 export const getAppUsers = (): AppUserProfile[] => {
   const data = localStorage.getItem(APP_USERS_KEY);
@@ -144,23 +207,10 @@ export const addAppUser = (user: Omit<AppUserProfile, 'id'> & AppUserCredentialI
   let allowedPages = user.allowedPages;
   let defaultPage = user.defaultPage;
   
-  if (!allowedPages || allowedPages.length === 0) {
-    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
-      allowedPages = ['dashboard', 'dispatch', 'reconciliation', 'cashSlipBook', 'inventory', 'sales', 'reports', 'outlets', 'ledger', 'orderBookers', 'settings'];
-      defaultPage = 'dashboard';
-    } else if (user.role === 'ASM') {
-      allowedPages = ['dashboard', 'reconciliation', 'reports', 'sales', 'inventory', 'outlets', 'ledger', 'cashSlipBook', 'dispatch'];
-      defaultPage = 'dashboard';
-    } else if (user.role === 'ORDER_BOOKER') {
-      allowedPages = ['sales', 'outlets', 'ledger', 'dispatch'];
-      defaultPage = 'sales';
-    } else if (user.role === 'SALESMAN') {
-      allowedPages = ['sales', 'dispatch', 'cashSlipBook', 'reports'];
-      defaultPage = 'dispatch';
-    } else {
-      allowedPages = ['dashboard', 'sales', 'dispatch'];
-      defaultPage = 'dashboard';
-    }
+  if (user.modulePermissions) {
+    allowedPages = ALL_APP_PAGES.filter(page => user.modulePermissions?.[page] && user.modulePermissions[page] !== 'OFF');
+  } else if (!allowedPages || allowedPages.length === 0) {
+    allowedPages = ROLE_DEFAULT_PAGES[user.role] || [];
   }
 
   const { password, pin, ...profile } = user;
@@ -168,7 +218,7 @@ export const addAppUser = (user: Omit<AppUserProfile, 'id'> & AppUserCredentialI
     ...profile,
     id,
     allowedPages,
-    defaultPage: defaultPage || allowedPages[0] || 'dashboard',
+    defaultPage: (defaultPage && allowedPages.includes(defaultPage) ? defaultPage : allowedPages[0]) || 'dashboard',
     isCustom: true
   };
 
@@ -657,14 +707,17 @@ export const isSalesman = (user?: AppUserProfile | null): boolean => {
 export const canModifyData = (user?: AppUserProfile | null): boolean => {
   const targetUser = user !== undefined ? user : getCurrentUser();
   if (targetUser) {
-    return targetUser.role !== 'ASM';
+    const currentPage = localStorage.getItem(CURRENT_PAGE_KEY) as AppPageId | null;
+    if (currentPage && getModulePermission(targetUser, currentPage) !== 'WRITE') return false;
+    if (!targetUser.modulePermissions && targetUser.role === 'ASM') return false;
+    return true;
   }
   return getCurrentRole() !== 'ASM';
 };
 
 export const assertCanModifyData = (actionDescription = 'modify or delete data'): void => {
   if (!canModifyData()) {
-    throw new Error(`Permission Denied: Area Sales Manager (ASM) has Read-Only Inspection access. Editing, adding, and deletion are restricted.`);
+    throw new Error(`Permission Denied: You have read-only access to this module and cannot ${actionDescription}.`);
   }
 };
 
@@ -672,15 +725,16 @@ export const assertCanModifyData = (actionDescription = 'modify or delete data')
 export const canManageDeliveriesAndLoading = (user?: AppUserProfile | null): boolean => {
   const targetUser = user !== undefined ? user : getCurrentUser();
   if (!targetUser) return false;
-  return targetUser.role === 'SUPER_ADMIN' || targetUser.role === 'ADMIN' || targetUser.role === 'SALESMAN';
+  return getModulePermission(targetUser, 'dispatch') === 'WRITE' &&
+    (!!targetUser.modulePermissions || targetUser.role === 'SUPER_ADMIN' || targetUser.role === 'ADMIN' || targetUser.role === 'SALESMAN');
 };
 
 // Order Booker & Super Admin can book orders
 export const canBookOrders = (user?: AppUserProfile | null): boolean => {
   const targetUser = user !== undefined ? user : getCurrentUser();
   if (!targetUser) return false;
-  if (targetUser.role === 'ASM') return false;
-  return targetUser.role === 'SUPER_ADMIN' || targetUser.role === 'ADMIN' || targetUser.role === 'ORDER_BOOKER';
+  return getModulePermission(targetUser, 'sales') === 'WRITE' &&
+    (!!targetUser.modulePermissions || targetUser.role === 'SUPER_ADMIN' || targetUser.role === 'ADMIN' || targetUser.role === 'ORDER_BOOKER');
 };
 
 // Get assigned routes for current user
@@ -1285,7 +1339,7 @@ export const purgeTemporaryMockDataFromStorage = (fullReset: boolean = false) =>
       if (rawInventory) {
         const parsed: any[] = JSON.parse(rawInventory);
         if (Array.isArray(parsed)) {
-          const builtInSkus = new Set(['WAR-500ML', 'WAR-1.5L', 'WAR-6L', 'WAR-19L']);
+          const builtInSkus = new Set(['WAR-500ML', 'WAR-1.5L', 'WAR-5L', 'WAR-6L', 'WAR-19L']);
           const cleaned = parsed.filter(item => !builtInSkus.has(String(item.SKU || '').toUpperCase()));
           if (cleaned.length !== parsed.length) {
             localStorage.setItem(MOCK_INVENTORY_KEY, JSON.stringify(cleaned));

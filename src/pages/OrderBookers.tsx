@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
-import { fetchOrderBookers, saveOrderBooker, deleteOrderBooker } from '@/src/api';
+import { fetchOrderBookers, saveOrderBooker, deleteOrderBooker, canModifyData } from '@/src/api';
 import { OrderBooker } from '@/src/types';
 import { User, Plus, Edit, Trash2 } from 'lucide-react';
 import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
 import { ConfirmDialog } from '@/src/components/ui/confirm-dialog';
 
 export function OrderBookers() {
+  const canEdit = canModifyData();
   const [obs, setObs] = useState<OrderBooker[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -58,11 +59,13 @@ export function OrderBookers() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Order Bookers</h1>
-          <p className="text-sm md:text-base text-gray-500 mt-1">Manage your team of order bookers.</p>
+          <p className="text-sm md:text-base text-gray-500 mt-1">{canEdit ? 'Manage your team of order bookers.' : 'Viewing order bookers (read-only).'}</p>
         </div>
-        <Button onClick={() => { setEditingOB({}); setIsEditing(true); }} className="gap-2 w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs">
-          <Plus className="h-4 w-4" /> Add Order Booker
-        </Button>
+        {canEdit && (
+          <Button onClick={() => { setEditingOB({}); setIsEditing(true); }} className="gap-2 w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs">
+            <Plus className="h-4 w-4" /> Add Order Booker
+          </Button>
+        )}
       </div>
 
       <ResponsiveDialog 
@@ -109,14 +112,16 @@ export function OrderBookers() {
                         {ob.Phone && <p className="text-sm text-gray-500">{ob.Phone}</p>}
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => { setEditingOB(ob); setIsEditing(true); }}>
-                        <Edit className="h-4 w-4 mr-2" /> Edit
-                      </Button>
-                      <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" onClick={() => setObToDelete(ob.ID)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingOB(ob); setIsEditing(true); }}>
+                          <Edit className="h-4 w-4 mr-2" /> Edit
+                        </Button>
+                        <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" onClick={() => setObToDelete(ob.ID)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))
               )}

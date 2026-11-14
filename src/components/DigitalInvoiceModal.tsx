@@ -170,8 +170,7 @@ export function DigitalInvoiceModal({
   try { if (sale.Date) dateText = format(new Date(sale.Date), 'dd-MMM-yyyy'); } catch { /* keep raw */ }
 
   const discount = Number(sale.Discount) || 0;
-  const shown = items.filter(it => Number(it.qty) > 0);
-  const base = (shown.length ? shown : items.slice(0, 1)).slice(0, 4);
+  const base = items;
   const grossOf = (it: any) => (typeof it.price === 'number' ? Number(it.qty) * it.price : 0);
   const totalGross = base.reduce((n, it) => n + grossOf(it), 0);
   const rows = base.map(it => {
@@ -179,7 +178,7 @@ export function DigitalInvoiceModal({
     const offer = totalGross > 0 ? Math.round((discount * gross) / totalGross) : 0;
     return { it, gross, offer, net: gross - offer };
   });
-  const totalQty = rows.reduce((n, r) => n + Number(r.it.qty || 0), 0);
+  const totalQty = rows.reduce((n, r) => n + (r.it.isPromo ? 0 : Number(r.it.qty || 0)), 0);
   const totalOffer = rows.reduce((n, r) => n + r.offer, 0);
   const net = totalGross - totalOffer;
   const taxAmount = Math.round(net * taxRate) / 100;
@@ -187,7 +186,12 @@ export function DigitalInvoiceModal({
   const opening = Number(outlet?.OpeningBalance) || 0;
   const closing = opening + grand;
   const fmt = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const skuFor = (d: string) => (d.includes('1500') ? 'WAR-1.5L' : d.includes('19') ? 'WAR-19L' : 'WAR-500ML');
+  const skuFor = (d: string) => (
+    d.includes('1500') ? 'WAR-1.5L' :
+    d.includes('19') ? 'WAR-19L' :
+    /\b5\s*L\b|\b5000\s*ML\b/i.test(d) ? 'WAR-5L' :
+    d.includes('PROMO') ? 'PROMO-500ML' : 'WAR-500ML'
+  );
   const full = (d: string) => (d.startsWith('PROMO') ? 'Promo 500ml (Free)' : 'Warsa Bottled Water ' + d.replace('ML', 'ml'));
   const customerNTN = (outlet as any)?.NTN || (outlet as any)?.CustomerNTN || '';
 

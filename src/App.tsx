@@ -47,7 +47,11 @@ import {
   purgeTemporaryMockDataFromStorage,
   ensureDataFetchedFromGoogleSheet,
   initFirestoreDataSync,
-  pullAllDataFromGoogleSheet
+  pullAllDataFromGoogleSheet,
+  getAppUserById,
+  getAppUsers,
+  saveAppUsers,
+  getUserAllowedPages
 } from './api';
 import { startAutoSync } from './utils/autoSync';
 import { RoleSelectPinScreen } from './components/RoleSelectPinScreen';
@@ -57,7 +61,7 @@ import { InstallPwaButton } from './components/InstallPwaButton';
 import { GoogleSheetSyncStatus } from './components/GoogleSheetSyncStatus';
 import { Button } from './components/ui/button';
 import { auth, mapFirebaseUserToProfile, signOutFirebase } from './lib/firebase';
-import { subscribeToFirestoreUsers } from './lib/firestoreSync';
+import { fetchUsersFromFirestore, subscribeToFirestoreUsers } from './lib/firestoreSync';
 import { onAuthStateChanged } from 'firebase/auth';
 
 export type Page = AppPageId;
@@ -81,12 +85,27 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser && !fbUser.isAnonymous) {
         try {
-          const profile = await mapFirebaseUserToProfile(fbUser);
+          const mappedProfile = await mapFirebaseUserToProfile(fbUser);
+          const cloudUsers = await fetchUsersFromFirestore();
+          const savedProfile = cloudUsers.find(user => user.id === fbUser.uid) || getAppUserById(fbUser.uid);
+          const profile: AppUserProfile = {
+            ...mappedProfile,
+            ...(savedProfile || {}),
+            id: mappedProfile.id,
+            role: mappedProfile.role,
+            modulePermissions: savedProfile?.modulePermissions
+          };
+          profile.allowedPages = getUserAllowedPages(profile);
           if (profile.allowedPages.length === 0) {
             setCurrentUser(null);
             setIsCheckingAuth(false);
             return;
           }
+          const cachedUsers = getAppUsers();
+          const cachedUserIndex = cachedUsers.findIndex(user => user.id === profile.id);
+          if (cachedUserIndex >= 0) cachedUsers[cachedUserIndex] = { ...cachedUsers[cachedUserIndex], ...profile };
+          else cachedUsers.push(profile);
+          saveAppUsers(cachedUsers);
           setCurrentUser(profile);
           setStoredCurrentUser(profile);
           setCurrentPage(page => profile.allowedPages.includes(page) ? page : (profile.defaultPage || profile.allowedPages[0] || 'dashboard'));
@@ -123,7 +142,7 @@ export default function App() {
   useEffect(() => {
     const handleNavigate = (e: CustomEvent<Page>) => {
       if (e.detail) {
-        if (currentUser && currentUser.allowedPages.includes(e.detail)) {
+        if (currentUser && getUserAllowedPages(currentUser).includes(e.detail)) {
           setCurrentPage(e.detail);
         } else if (!currentUser) {
           setCurrentPage(e.detail);
@@ -134,10 +153,15 @@ export default function App() {
     return () => window.removeEventListener('navigate_page' as any, handleNavigate);
   }, [currentUser]);
 
+  useEffect(() => {
+    if (currentUser) localStorage.setItem('warsa_current_page_v3', currentPage);
+  }, [currentPage, currentUser]);
+
   const handleAuthenticated = (user: AppUserProfile) => {
     setCurrentUser(user);
     setStoredCurrentUser(user);
-    setCurrentPage(user.defaultPage || user.allowedPages[0] || 'dashboard');
+    const allowedPages = getUserAllowedPages(user);
+    setCurrentPage(user.defaultPage || allowedPages[0] || 'dashboard');
   };
 
   const handleLogout = async () => {
@@ -186,7 +210,7 @@ export default function App() {
   ];
 
   // Role-based Navigation items filtered by currentUser.allowedPages
-  const allowedSet = new Set(currentUser?.allowedPages || ['dashboard']);
+  const allowedSet = new Set(currentUser ? getUserAllowedPages(currentUser) : ['dashboard']);
   const allNavItems = navSections.flatMap(s => s.items);
   const navItems = allNavItems.filter(item => allowedSet.has(item.id));
   

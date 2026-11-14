@@ -26,7 +26,11 @@ import {
   getSecurityLogs,
   clearSecurityLogHistory,
   unlockUserAccount,
-  SecurityPostureMetrics
+  SecurityPostureMetrics,
+  APP_MODULES,
+  getDefaultModulePermissions,
+  getModulePermission,
+  getUserAllowedPages
 } from '@/src/api';
 import { 
   Save, 
@@ -73,7 +77,7 @@ import {
   HardDrive,
   CloudUpload
 } from 'lucide-react';
-import { AppUserProfile, AppUserCredentialInput, UserRole } from '../types';
+import { AppUserProfile, AppUserCredentialInput, UserRole, AppPageId, ModulePermission } from '../types';
 import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
 import { ConfirmDialog } from '@/src/components/ui/confirm-dialog';
 import { cn } from '@/src/lib/utils';
@@ -88,6 +92,12 @@ const APPS_SCRIPT_CODE = APPS_SCRIPT_SOURCE;
 interface SettingsProps {
   currentUser: AppUserProfile;
 }
+
+const getConfiguredModulePermissions = (user: AppUserProfile): Record<AppPageId, ModulePermission> =>
+  APP_MODULES.flatMap(section => section.pages).reduce((permissions, page) => {
+    permissions[page.id] = getModulePermission(user, page.id);
+    return permissions;
+  }, {} as Record<AppPageId, ModulePermission>);
 
 export function Settings({ currentUser }: SettingsProps) {
   const [url, setUrl] = useState('');
@@ -572,6 +582,15 @@ export function Settings({ currentUser }: SettingsProps) {
     e.preventDefault();
     if (!editingUser?.name || !editingUser?.role) return;
 
+    const modulePermissions = editingUser.modulePermissions || getDefaultModulePermissions(editingUser.role);
+    const allowedPages = APP_MODULES.flatMap(section => section.pages)
+      .filter(page => modulePermissions[page.id] && modulePermissions[page.id] !== 'OFF')
+      .map(page => page.id);
+    if (allowedPages.length === 0) {
+      setUserFormError('Enable at least one module before saving this account.');
+      return;
+    }
+
     if (editingUser.password && editingUser.password.length < 6) {
       alert('Password must be at least 6 characters long for baseline security.');
       return;
@@ -644,7 +663,10 @@ export function Settings({ currentUser }: SettingsProps) {
         assignedRoutes: editingUser.assignedRoute ? [editingUser.assignedRoute] : [],
         avatarColor,
         iconName,
-        responsibilities
+        responsibilities,
+        modulePermissions,
+        allowedPages,
+        defaultPage: editingUser.defaultPage && allowedPages.includes(editingUser.defaultPage) ? editingUser.defaultPage : allowedPages[0]
       });
       setPinSuccessMsg(`Account for "${editingUser.name}" updated successfully.`);
     } else {
@@ -691,11 +713,12 @@ export function Settings({ currentUser }: SettingsProps) {
           phone: editingUser.phone || '',
           assignedRoute: editingUser.assignedRoute || '',
           assignedRoutes: editingUser.assignedRoute ? [editingUser.assignedRoute] : [],
-          allowedPages: [],
-          defaultPage: editingUser.role === 'SUPER_ADMIN' ? 'dashboard' :
-                       editingUser.role === 'ASM' ? 'dashboard' :
-                       editingUser.role === 'ORDER_BOOKER' ? 'sales' : 'dispatch'
-        } as any);
+          modulePermissions,
+          allowedPages,
+          defaultPage: allowedPages.includes(editingUser.role === 'ORDER_BOOKER' ? 'sales' : editingUser.role === 'SALESMAN' ? 'dispatch' : 'dashboard')
+            ? (editingUser.role === 'ORDER_BOOKER' ? 'sales' : editingUser.role === 'SALESMAN' ? 'dispatch' : 'dashboard')
+            : allowedPages[0]
+        });
         setPinSuccessMsg(`Account "${firebaseEmail}" created and saved to Firebase with the ${editingUser.role} role.`);
       } catch (error) {
         setUserFormError(error instanceof Error ? error.message : 'Firebase account creation failed.');
@@ -765,7 +788,8 @@ export function Settings({ currentUser }: SettingsProps) {
               role: 'ORDER_BOOKER',
               department: 'Field Sales',
               assignedRoute: 'Route 1 - Gulberg & Cantt',
-              phone: ''
+              phone: '',
+              modulePermissions: getDefaultModulePermissions('ORDER_BOOKER')
             });
             setUserFormError(null); setIsUserModalOpen(true);
           }}
@@ -871,7 +895,7 @@ export function Settings({ currentUser }: SettingsProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setEditingUser(user);
+                          setEditingUser({ ...user, modulePermissions: getConfiguredModulePermissions(user) });
                           setUserFormError(null); setIsUserModalOpen(true);
                         }}
                         className="h-8 w-8 p-0 text-slate-500 hover:text-blue-600"
@@ -977,7 +1001,10 @@ export function Settings({ currentUser }: SettingsProps) {
                       Phone: <strong className="text-slate-700">{user.phone || '0336-4574227'}</strong>
                     </span>
                     <span>
-                      Access: <strong className="text-slate-700">{user.allowedPages?.length || 10} Modules</strong>
+                      Access: <strong className="text-slate-700">
+                        {getUserAllowedPages(user).length} Modules
+                        ({APP_MODULES.flatMap(section => section.pages).filter(page => getModulePermission(user, page.id) === 'READ').length} read-only)
+                      </strong>
                     </span>
                   </div>
                 </div>
@@ -1053,7 +1080,10 @@ export function Settings({ currentUser }: SettingsProps) {
                 <label className="text-xs font-bold text-slate-700 uppercase">Role Permission *</label>
                 <select
                   value={editingUser.role || 'ORDER_BOOKER'}
-                  onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value as UserRole })}
+                  onChange={(e) => {
+                    const role = e.target.value as UserRole;
+                    setEditingUser({ ...editingUser, role, modulePermissions: getDefaultModulePermissions(role) });
+                  }}
                   className="w-full h-10 px-3 text-sm rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-red-500/20"
                 >
                   <option value="SUPER_ADMIN">Super Administrator (Full Rights & User Management)</option>
@@ -1166,6 +1196,49 @@ export function Settings({ currentUser }: SettingsProps) {
                 />
               </div>
             </div>
+
+            <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Module Access</h3>
+                <p className="text-[11px] text-slate-500">Choose Off, Read Only, or Read &amp; Write for each module.</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {APP_MODULES.map(section => (
+                  <div key={section.category} className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-red-600">{section.category}</h4>
+                    {section.pages.map(page => {
+                      const permission = editingUser.modulePermissions?.[page.id]
+                        || getDefaultModulePermissions(editingUser.role || 'ORDER_BOOKER')[page.id];
+                      return (
+                        <div key={page.id} className="flex items-center justify-between gap-2">
+                          <label htmlFor={`module-permission-${page.id}`} className="text-xs font-medium text-slate-700">
+                            {page.label}
+                          </label>
+                          <select
+                            id={`module-permission-${page.id}`}
+                            value={page.id === 'settings' && editingUser.role !== 'ADMIN' && editingUser.role !== 'SUPER_ADMIN' ? 'OFF' : permission}
+                            disabled={page.id === 'settings' && editingUser.role !== 'ADMIN' && editingUser.role !== 'SUPER_ADMIN'}
+                            onChange={(e) => setEditingUser({
+                              ...editingUser,
+                              modulePermissions: {
+                                ...getDefaultModulePermissions(editingUser.role || 'ORDER_BOOKER'),
+                                ...editingUser.modulePermissions,
+                                [page.id]: e.target.value as ModulePermission
+                              }
+                            })}
+                            className="h-8 min-w-32 rounded-md border border-slate-300 bg-white px-2 text-xs font-medium text-slate-700 focus:ring-2 focus:ring-red-500/20"
+                          >
+                            <option value="OFF">Off</option>
+                            <option value="READ">Read Only</option>
+                            <option value="WRITE">Read &amp; Write</option>
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </section>
 
             {userFormError && (
               <div className="rounded-lg border border-red-200 bg-red-50 text-red-800 text-xs font-semibold p-3">

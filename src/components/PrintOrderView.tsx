@@ -139,7 +139,7 @@ export const PrintOrderView = ({ sale, outlets }: { sale: SaleRecord | null, out
           <div>AMOUNT</div>
         </div>
 
-        {processedItems.slice(0, 4).map((it, idx) => {
+        {processedItems.slice(0, 5).map((it, idx) => {
           const rowClass = `tr t${idx + 1} ${it.isAlt ? 'alt' : ''}`;
           return (
             <div key={idx} className={rowClass}>
@@ -291,10 +291,11 @@ export const PrintOrderView = ({ sale, outlets }: { sale: SaleRecord | null, out
           .warsa-invoice .tr div:last-child { border-right: 1px solid var(--red-line); }
           .warsa-invoice .tr.alt { background: var(--pink); }
           .warsa-invoice .tr em { font-style: italic; font-weight: 600; }
-          .warsa-invoice .t1 { top: 640px; height: 66px; }
-          .warsa-invoice .t2 { top: 706px; height: 65px; }
-          .warsa-invoice .t3 { top: 771px; height: 64px; }
-          .warsa-invoice .t4 { top: 835px; height: 65px; }
+          .warsa-invoice .t1 { top: 640px; height: 52px; }
+          .warsa-invoice .t2 { top: 692px; height: 52px; }
+          .warsa-invoice .t3 { top: 744px; height: 52px; }
+          .warsa-invoice .t4 { top: 796px; height: 52px; }
+          .warsa-invoice .t5 { top: 848px; height: 52px; }
           .warsa-invoice .total-cases { left: 35px; top: 900px; width: 925px; height: 60px; display: grid; grid-template-columns: 421px 166px 338px; border: 1px solid var(--red-line); border-top: none; }
           .warsa-invoice .total-cases div { display: flex; align-items: center; justify-content: center; font: 600 22px/1 'Oswald', sans-serif; }
           .warsa-invoice .total-cases .tc-l { color: var(--red); font-size: 23px; border-right: 1px solid var(--red-line); }

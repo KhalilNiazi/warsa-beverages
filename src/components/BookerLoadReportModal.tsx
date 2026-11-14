@@ -40,14 +40,14 @@ export interface SkuDefinition {
   isPromo: boolean;
 }
 
-// Order: strictly first 500ml, then 1.5L, then 19L, then 6L, followed by promo and others
+// Order: strictly first 500ml, then 1.5L, then 19L, then 5L, followed by promo and others
 export const getSkuRank = (skuOrName: string, isPromo: boolean = false): number => {
   if (isPromo) return 50; // Promo appears right after regular SKUs
   const s = (skuOrName || '').toLowerCase();
   if (s.includes('500') || s.includes('half')) return 10;
   if (s.includes('1.5') || s.includes('1500') || s.includes('1-5')) return 20;
   if (s.includes('19') || s.includes('can') || s.includes('gallon')) return 30; // First 500ml, then 1.5L, then 19L
-  if (s.includes('6l') || s.includes('6 litre') || s.includes('6 liter') || s.includes('6-l')) return 40;
+  if (/\b5\s*l\b|\b5000\s*ml\b/.test(s)) return 40;
   return 45; // Other regular SKUs
 };
 
@@ -150,7 +150,7 @@ export function BookerLoadReportModal({
     });
   }, [filteredSales]);
 
-  // Build sorted SKU definitions strictly ordered: first 500ml, then 1.5L, then 19L, then 6L, then Promo
+  // Build sorted SKU definitions strictly ordered: first 500ml, then 1.5L, then 19L, then 5L, then Promo
   const sortedSkus: SkuDefinition[] = useMemo(() => {
     const list: SkuDefinition[] = [];
 
@@ -159,7 +159,7 @@ export function BookerLoadReportModal({
       { id: '1', sku: 'WAR-500ML', name: 'WARSA 500ml', shortLabel: '500ml', size: '500ml', bottlesPerCase: 24, rate: 370, rank: 10, isPromo: false },
       { id: '2', sku: 'WAR-1.5L', name: 'WARSA 1.5L', shortLabel: '1.5L', size: '1.5L', bottlesPerCase: 6, rate: 370, rank: 20, isPromo: false },
       { id: '4', sku: 'WAR-19L', name: 'WARSA 19L', shortLabel: '19L', size: '19 Litre Can', bottlesPerCase: 1, rate: 180, rank: 30, isPromo: false },
-      { id: '3', sku: 'WAR-6L', name: 'WARSA 6L', shortLabel: '6L', size: '6 Litre', bottlesPerCase: 1, rate: 250, rank: 40, isPromo: false },
+      { id: '3', sku: 'WAR-5L', name: 'WARSA 5L', shortLabel: '5L', size: '5 Litre', bottlesPerCase: 2, rate: 450, rank: 40, isPromo: false },
     ];
 
     // Seed standard SKUs, updating rates from inventory if available
@@ -219,7 +219,7 @@ export function BookerLoadReportModal({
       });
     }
 
-    // Sort strictly by rank: 500ml (10) -> 1.5L (20) -> 6L (30) -> 19L (40) -> Promo (50)
+    // Sort strictly by rank: 500ml (10) -> 1.5L (20) -> 19L (30) -> 5L (40) -> Promo (50)
     return list.sort((a, b) => a.rank - b.rank);
   }, [inventory, hasPromoInFiltered]);
 
@@ -259,7 +259,7 @@ export function BookerLoadReportModal({
         matched = true;
       } else if (sLabel === '1.5l' && (pName.includes('1.5') || pName.includes('1500') || pName.includes('1-5'))) {
         matched = true;
-      } else if (sLabel === '6l' && (pName.includes('6l') || pName.includes('6 litre') || pName.includes('6 liter'))) {
+      } else if (sLabel === '5l' && (/\b5\s*l\b|\b5000\s*ml\b/.test(pName))) {
         matched = true;
       } else if (sLabel === '19l' && (pName.includes('19') || pName.includes('can') || pName.includes('gallon'))) {
         matched = true;
@@ -376,7 +376,7 @@ export function BookerLoadReportModal({
         'Booked By': sale.BookedBy || sale.OrderBooker || '-',
       };
 
-      // Add each SKU column in designated order: 500ml -> 1.5L -> 6L -> 19L -> Promo
+      // Add each SKU column in designated order: 500ml -> 1.5L -> 19L -> 5L -> Promo
       sortedSkus.forEach(sku => {
         const qty = getSaleSkuQty(sale, sku);
         const colTitle = sku.isPromo ? 'Promo 500ml (Free cs)' : `${sku.shortLabel} Cases (${sku.sku})`;
@@ -454,7 +454,7 @@ export function BookerLoadReportModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Delivery Truck Load Sheet & Outlet-Wise Orders"
-      subtitle="SKU-Wise Vehicle Loading Manifest (First 500ml → 1.5L → 19L) & Drop Sequence Report"
+      subtitle="SKU-Wise Vehicle Loading Manifest (First 500ml → 1.5L → 19L → 5L) & Drop Sequence Report"
       className="max-w-6xl"
     >
       <div className="space-y-4">
@@ -705,7 +705,7 @@ export function BookerLoadReportModal({
                     1. Delivery Truck Load Sheet (SKU-Wise Vehicle Loading Summary)
                   </h3>
                   <span className="text-[11px] text-gray-700 font-bold">
-                    SKU Sequence: First 500ml &rarr; 1.5L &rarr; 19L
+                    SKU Sequence: First 500ml &rarr; 1.5L &rarr; 19L &rarr; 5L
                   </span>
                 </div>
 
@@ -828,7 +828,7 @@ export function BookerLoadReportModal({
                         <th className="border border-black p-1 text-left min-w-[140px]">Outlet / Customer Name</th>
                         <th className="border border-black p-1 text-left w-24">Route</th>
 
-                        {/* DYNAMIC SKU MATRIX HEADERS (First 500ml, then 1.5L, then 6L, then 19L, then Promo) */}
+                        {/* DYNAMIC SKU MATRIX HEADERS (First 500ml, then 1.5L, then 19L, then 5L, then Promo) */}
                         {sortedSkus.map(sku => (
                           <th 
                             key={sku.id || sku.sku} 

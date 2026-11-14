@@ -518,7 +518,7 @@ export function Sales() {
             <Button
               onClick={() => setIsLoadReportOpen(true)}
               className="gap-1.5 bg-red-600 hover:bg-red-700 text-white font-bold h-10 shadow-xs cursor-pointer text-xs sm:text-sm"
-              title="Delivery Truck Load Sheet & Outlet-Wise Orders (SKU-Wise: 500ml, 1.5L, 19L)"
+              title="Delivery Truck Load Sheet & Outlet-Wise Orders (SKU-Wise: 500ml, 1.5L, 5L, 19L)"
             >
               <Truck className="h-4 w-4 text-white shrink-0" />
               <span>Truck Load Sheet</span>

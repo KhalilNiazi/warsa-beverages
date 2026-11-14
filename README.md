@@ -26,7 +26,7 @@ KFM Beverages (WARSA) - Complete Water Beverage Distribution, Warehouse, Dispatc
   publishing, and do not grant ordinary users access to credential fields or
   administrative collections.
 
-- **Warehouse Stock (`/inventory`)**: Master inventory catalog (500ml, 1.5L, 6L, 19L), stock inward logs, physical floor stock counts, and threshold alerts.
+- **Warehouse Stock (`/inventory`)**: Master inventory catalog (500ml, 1.5L, 5L, 19L), stock inward logs, physical floor stock counts, and threshold alerts.
 - **Deliveries & Dispatch (`/dispatch`)**: Vehicle loading, delivery fulfillment, returned empty bottles, and route load reconciliation.
 - **Booked Orders (`/sales`)**: Order booking, delivery verification, item rejection logging, and invoice generation.
 - **Customer Ledgers & Cash (`/ledger`)**: Shop-by-shop credit ledgers, payment collection records, and statement printing.

@@ -11,7 +11,7 @@ export interface ProcessedInvoiceItem {
 }
 
 /**
- * Ensures all 4 standard items (500ml, 1500ml, 19 L, and Promo 500ml)
+ * Ensures all standard items (500ml, 1500ml, 5 L, 19 L, and Promo 500ml)
  * are always present in the printed order invoice.
  * Even if the shopkeeper has not added an item, its quantity will show 0 and amount 0.
  */
@@ -37,7 +37,15 @@ export function buildStandardInvoicePrintItems(sale: SaleRecord, outlet?: Outlet
     return txt.includes('1500') || txt.includes('1.5') || txt.includes('1,5') || i.ProductID === '2';
   });
 
-  // 3. Match 19 L item (19L / 19 Liter non-promo)
+  // 3. Match 5 L item (5L / 5000ml non-promo)
+  const item5L = rawItems.find(i => {
+    const isPromo = Boolean(i.IsPromo || (i.Price === 0 && getItemText(i).includes('promo')));
+    if (isPromo) return false;
+    const txt = getItemText(i);
+    return /\b5\s*l\b|\b5000\s*ml\b/.test(txt) || i.ProductID === '3';
+  });
+
+  // 4. Match 19 L item (19L / 19 Liter non-promo)
   const item19L = rawItems.find(i => {
     const isPromo = Boolean(i.IsPromo || (i.Price === 0 && getItemText(i).includes('promo')));
     if (isPromo) return false;
@@ -45,8 +53,8 @@ export function buildStandardInvoicePrintItems(sale: SaleRecord, outlet?: Outlet
     return txt.includes('19') || i.ProductID === '4';
   });
 
-  // 4. Match Promo 500ml item
-  const itemPromo = rawItems.find(i => {
+  // 5. Match Promo 500ml item
+  const promoItems = rawItems.filter(i => {
     return Boolean(i.IsPromo || (i.Price === 0 && getItemText(i).includes('promo')));
   });
 
@@ -59,6 +67,10 @@ export function buildStandardInvoicePrintItems(sale: SaleRecord, outlet?: Outlet
     ? item1500.Price
     : (outlet?.CustomRates?.['2'] ?? outlet?.CustomRates?.['WAR-1.5L'] ?? 370);
 
+  const price5L = item5L?.Price !== undefined && item5L.Price > 0
+    ? item5L.Price
+    : (outlet?.CustomRates?.['3'] ?? outlet?.CustomRates?.['WAR-5L'] ?? 450);
+
   const price19L = item19L?.Price !== undefined && item19L.Price > 0
     ? item19L.Price
     : (outlet?.CustomRates?.['4'] ?? outlet?.CustomRates?.['WAR-19L'] ?? 180);
@@ -66,18 +78,21 @@ export function buildStandardInvoicePrintItems(sale: SaleRecord, outlet?: Outlet
   // Quantities: if not added by shopkeeper, show 0
   const qty500 = item500 ? (item500.Quantity ?? item500.BookedQty ?? (item500 as any).Qty ?? 0) : 0;
   const qty1500 = item1500 ? (item1500.Quantity ?? item1500.BookedQty ?? (item1500 as any).Qty ?? 0) : 0;
+  const qty5L = item5L ? (item5L.Quantity ?? item5L.BookedQty ?? (item5L as any).Qty ?? 0) : 0;
   const qty19L = item19L ? (item19L.Quantity ?? item19L.BookedQty ?? (item19L as any).Qty ?? 0) : 0;
 
-  let promoQty = 0;
-  if (itemPromo) {
-    promoQty = itemPromo.Quantity ?? itemPromo.BookedQty ?? (itemPromo as any).Qty ?? 1;
-  } else if (sale.HasPromo || (sale.PromoFreeCases && sale.PromoFreeCases > 0)) {
-    promoQty = sale.PromoFreeCases || 1;
-  }
+  const itemPromoQty = promoItems.reduce((total, item) =>
+    total + Number(item.Quantity ?? item.BookedQty ?? (item as any).Qty ?? 0), 0);
+  const promoQty = itemPromoQty > 0
+    ? itemPromoQty
+    : Number(sale.PromoFreeCases) > 0
+      ? Number(sale.PromoFreeCases)
+      : sale.HasPromo ? 1 : 0;
 
   // Amounts
   const amount500 = qty500 > 0 ? (item500?.Amount ?? (Number(qty500) * Number(price500))) : 0;
   const amount1500 = qty1500 > 0 ? (item1500?.Amount ?? (Number(qty1500) * Number(price1500))) : 0;
+  const amount5L = qty5L > 0 ? (item5L?.Amount ?? (Number(qty5L) * Number(price5L))) : 0;
   const amount19L = qty19L > 0 ? (item19L?.Amount ?? (Number(qty19L) * Number(price19L))) : 0;
 
   return [
@@ -101,6 +116,15 @@ export function buildStandardInvoicePrintItems(sale: SaleRecord, outlet?: Outlet
     },
     {
       num: 3,
+      desc: '5L',
+      qty: qty5L,
+      price: price5L,
+      amount: amount5L,
+      isPromo: false,
+      isAlt: false
+    },
+    {
+      num: 4,
       desc: '19 L',
       qty: qty19L,
       price: price19L,
@@ -109,7 +133,7 @@ export function buildStandardInvoicePrintItems(sale: SaleRecord, outlet?: Outlet
       isAlt: false
     },
     {
-      num: 4,
+      num: 5,
       desc: 'PROMO 500ML',
       qty: promoQty,
       price: promoQty > 0 ? 'FREE' : 0,
