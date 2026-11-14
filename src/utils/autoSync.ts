@@ -58,7 +58,8 @@ export function startAutoSync(options: {
     if (document.querySelector('.responsive-dialog-portal')) return;
     pulling = true;
     try {
-      await options.pull();
+      const result = await options.pull();
+      if (typeof result === 'object' && result !== null && 'success' in result && result.success === false) return;
       lastPull = Date.now();
     } catch (e) {
       console.warn('[AutoSync] pull notice:', e);
@@ -72,7 +73,10 @@ export function startAutoSync(options: {
     if (Date.now() - lastPull >= PULL_INTERVAL_MS) await pullNow();
   };
 
-  const onOnline = () => { void tick(); };
+  const onOnline = () => {
+    lastPull = 0;
+    void tick();
+  };
   const onVisible = () => { if (document.visibilityState === 'visible') void tick(); };
   const onQueueChanged = () => { setTimeout(() => void pushNow(), 1500); };
 

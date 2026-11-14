@@ -1631,11 +1631,9 @@ export const ensureDataFetchedFromGoogleSheet = async (forceRefresh: boolean = f
 
       const settings = getSettings();
       if (!settings.appsScriptUrl || !settings.appsScriptUrl.trim()) {
-        hasInitiallyFetched = true;
         return false;
       }
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        hasInitiallyFetched = true;
         return false;
       }
 
@@ -1646,11 +1644,11 @@ export const ensureDataFetchedFromGoogleSheet = async (forceRefresh: boolean = f
       );
       const pullPromise = pullAllDataFromGoogleSheet();
       const result = await Promise.race([pullPromise, timeoutPromise]);
-      hasInitiallyFetched = true;
+      hasInitiallyFetched = result.success;
       return result.success;
     } catch (err) {
       console.warn('[Google Sheet] Default fetch notice:', err);
-      hasInitiallyFetched = true;
+      hasInitiallyFetched = false;
       return false;
     } finally {
       initialFetchPromise = null;

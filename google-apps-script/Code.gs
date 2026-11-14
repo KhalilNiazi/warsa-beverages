@@ -552,7 +552,7 @@ function authorizeUserRole(user, action, payload) {
   var writeRoles = {
     saveInventory: ['WAREHOUSE_MANAGER'],
     saveSale: ['ORDER_BOOKER', 'SALESMAN'],
-    saveOutlet: ['ORDER_BOOKER', 'SALESMAN'],
+    saveOutlet: ['ORDER_BOOKER', 'SALESMAN', 'MANAGEMENT'],
     saveDispatch: ['SALESMAN', 'DRIVER'],
     saveCashSlip: ['SALESMAN'],
     savePayment: ['SALESMAN', 'ACCOUNTS'],
@@ -772,11 +772,7 @@ function writeSheetRow(sheetName, item, idKey, authUser) {
   }
   if (mutationId) delete item._mutationId;
 
-  var ss = getSpreadsheet_();
-  var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) {
-    sheet = ensureSheetWithSchema(sheetName);
-  }
+  var sheet = ensureSheetWithSchema(sheetName);
 
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   var idVal = String(item[idKey] || item.ID || item.id || '');
