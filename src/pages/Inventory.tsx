@@ -765,10 +765,10 @@ export function Inventory() {
                 <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-red-200/60">
                   <span className="text-[10px] font-bold text-slate-600">Click to autofill format:</span>
                   {[
-                    { name: 'WARSA 500ml', sku: 'WAR-500ML', size: '500ml', bpc: 24, price: 960 },
-                    { name: 'WARSA 1.5L', sku: 'WAR-1.5L', size: '1.5L', bpc: 6, price: 660 },
-                    { name: 'WARSA 5L', sku: 'WAR-5L', size: '5L', bpc: 2, price: 450 },
-                    { name: 'WARSA 19L', sku: 'WAR-19L', size: '19L', bpc: 1, price: 220 }
+                    { name: 'WARSA 500ml', sku: 'WAR-500ML', size: '500ml', bpc: 24 },
+                    { name: 'WARSA 1.5L', sku: 'WAR-1.5L', size: '1.5L', bpc: 6 },
+                    { name: 'WARSA 5L', sku: 'WAR-5L', size: '5L', bpc: 2 },
+                    { name: 'WARSA 19L', sku: 'WAR-19L', size: '19L', bpc: 1 }
                   ].map((preset) => (
                     <button
                       key={preset.name}
@@ -780,7 +780,7 @@ export function Inventory() {
                           SKU: editingItem.SKU || preset.sku,
                           Size: editingItem.Size || preset.size,
                           BottlesPerCase: editingItem.BottlesPerCase || preset.bpc,
-                          Price: editingItem.Price || preset.price
+                          Price: editingItem.Price ?? 0
                         });
                       }}
                       className="text-[10px] font-bold bg-white text-red-700 hover:bg-red-600 hover:text-white px-2.5 py-1 rounded-md border border-red-300 transition-colors shadow-2xs cursor-pointer"

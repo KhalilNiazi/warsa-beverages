@@ -156,10 +156,10 @@ export function BookerLoadReportModal({
 
     // Map known standard SKUs or read from inventory
     const standardDefs = [
-      { id: '1', sku: 'WAR-500ML', name: 'WARSA 500ml', shortLabel: '500ml', size: '500ml', bottlesPerCase: 24, rate: 370, rank: 10, isPromo: false },
-      { id: '2', sku: 'WAR-1.5L', name: 'WARSA 1.5L', shortLabel: '1.5L', size: '1.5L', bottlesPerCase: 6, rate: 370, rank: 20, isPromo: false },
-      { id: '4', sku: 'WAR-19L', name: 'WARSA 19L', shortLabel: '19L', size: '19 Litre Can', bottlesPerCase: 1, rate: 180, rank: 30, isPromo: false },
-      { id: '3', sku: 'WAR-5L', name: 'WARSA 5L', shortLabel: '5L', size: '5 Litre', bottlesPerCase: 2, rate: 450, rank: 40, isPromo: false },
+      { id: '1', sku: 'WAR-500ML', name: 'WARSA 500ml', shortLabel: '500ml', size: '500ml', bottlesPerCase: 24, rate: 0, rank: 10, isPromo: false },
+      { id: '2', sku: 'WAR-1.5L', name: 'WARSA 1.5L', shortLabel: '1.5L', size: '1.5L', bottlesPerCase: 6, rate: 0, rank: 20, isPromo: false },
+      { id: '4', sku: 'WAR-19L', name: 'WARSA 19L', shortLabel: '19L', size: '19 Litre Can', bottlesPerCase: 1, rate: 0, rank: 30, isPromo: false },
+      { id: '3', sku: 'WAR-5L', name: 'WARSA 5L', shortLabel: '5L', size: '5 Litre', bottlesPerCase: 2, rate: 0, rank: 40, isPromo: false },
     ];
 
     // Seed standard SKUs, updating rates from inventory if available
@@ -176,7 +176,7 @@ export function BookerLoadReportModal({
         shortLabel: def.shortLabel,
         size: invItem?.Size || def.size,
         bottlesPerCase: invItem?.BottlesPerCase || def.bottlesPerCase,
-        rate: invItem?.Price || def.rate,
+        rate: invItem?.Price ?? 0,
         rank: def.rank,
         isPromo: false
       });

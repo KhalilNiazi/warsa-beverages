@@ -1,10 +1,14 @@
 import React from 'react';
-import { SaleRecord, Outlet } from '@/src/types';
+import { InventoryItem, SaleRecord, Outlet } from '@/src/types';
 import { format } from 'date-fns';
 import { Scissors } from 'lucide-react';
 import { buildStandardInvoicePrintItems } from '@/src/utils/invoicePrintHelper';
 
-export const PrintOrderView = ({ sale, outlets }: { sale: SaleRecord | null, outlets: Outlet[] }) => {
+export const PrintOrderView = ({ sale, outlets, inventory = [] }: {
+  sale: SaleRecord | null;
+  outlets: Outlet[];
+  inventory?: InventoryItem[];
+}) => {
   if (!sale) return null;
   const outlet = outlets.find(o => o.Name === sale.OutletName || o.Address === sale.Address);
   const outletCode = outlet?.Code || sale.OutletCode || '79';
@@ -19,7 +23,7 @@ export const PrintOrderView = ({ sale, outlets }: { sale: SaleRecord | null, out
   })() : '4/16/2026 14:51';
 
   // Always include all 4 canonical items (500ml, 1500ml, 19 L, Promo 500ml); unadded items show 0
-  const processedItems = buildStandardInvoicePrintItems(sale, outlet);
+  const processedItems = buildStandardInvoicePrintItems(sale, inventory);
 
   const SingleInvoiceSheet = ({ isCustomerCopy }: { isCustomerCopy: boolean }) => {
     return (
@@ -40,7 +44,7 @@ export const PrintOrderView = ({ sale, outlets }: { sale: SaleRecord | null, out
           <div className="redbg"></div>
           <div className="brand-small">KFM BEVERAGES</div>
           <div className="brand-big">WARSA</div>
-          <div className="brand-sub">KFM BEVERAGES (WARSA) &bull; BOTTLED DRINKING WATER &bull; NTN: H039315</div>
+          <div className="brand-sub">KFM BEVERAGES (WARSA) &bull; NTN: H039315 &bull; GAS</div>
           <div className="abs top-right-copy">{isCustomerCopy ? 'CUSTOMER COPY' : 'ORIGINAL COPY'}</div>
           <div className="vline"></div>
           <div className="code-top">CODE</div>
@@ -61,7 +65,7 @@ export const PrintOrderView = ({ sale, outlets }: { sale: SaleRecord | null, out
             <use href="#pov-phone"/>
           </svg>
         </div>
-        <div className="abs addr-phone">[0314-1421965]</div>
+        <div className="abs addr-phone">03141421965</div>
 
         <div className="abs frame"></div>
 
@@ -112,10 +116,13 @@ export const PrintOrderView = ({ sale, outlets }: { sale: SaleRecord | null, out
             </svg>
           </div>
           <div className="lbl s">Contact Number</div>
-          <div className="val">{sale.ContactNumber || outlet?.ContactNumber || '0370-6253203'}</div>
+          <div className="val">{sale.ContactNumber || outlet?.ContactNumber || '-'}</div>
           <div className="lbl own">OWNER</div>
           <div className="val">{sale.OwnerName || outlet?.OwnerName || 'WASEEM'}</div>
-          <div className="val">{sale.BookedBy || sale.OrderBooker || outlet?.OB || 'AOUN ALI'}</div>
+          <div className="people">
+            <span>BOOKER: {outlet?.OB || sale.OrderBooker || sale.BookedBy || '-'}</span>
+            <span>DELIVERY: {sale.DriverName || '-'}</span>
+          </div>
         </div>
 
         <div className="abs cell credit-h">{sale.PaymentMethod || 'CREDIT'}</div>
@@ -123,16 +130,15 @@ export const PrintOrderView = ({ sale, outlets }: { sale: SaleRecord | null, out
         <svg className="abs side-phone" style={{ color: 'var(--red)' }}>
           <use href="#pov-phone"/>
         </svg>
-        <div className="abs side-num1">03413475816</div>
+        <div className="abs side-num1">03141421965</div>
         <div className="abs side-line"></div>
         <svg className="abs side-wa" viewBox="0 0 32 32" fill="none" stroke="#dd0000" strokeWidth="2.2">
           <path d="M16 3a13 13 0 00-11 19.500L3 29l6.700-2A13 13 0 1016 3z"/>
           <path d="M11 10c0 5 5 10 10 10l2-2.500-3-1.500-1.500 1.200c-1.500-.7-3-2.200-3.700-3.700l1.200-1.500L14 9z" fill="#dd0000" stroke="none"/>
         </svg>
-        <div className="abs side-num2">03415956432 <small>(WhatsApp)</small></div>
+        <div className="abs side-num2">03141421965</div>
 
         <div className="abs th">
-          <div>ITEMS</div>
           <div>DESCRIPTION</div>
           <div>QUANTITY</div>
           <div>FULL PRICE</div>
@@ -143,7 +149,6 @@ export const PrintOrderView = ({ sale, outlets }: { sale: SaleRecord | null, out
           const rowClass = `tr t${idx + 1} ${it.isAlt ? 'alt' : ''}`;
           return (
             <div key={idx} className={rowClass}>
-              <div>{it.desc ? it.num : ''}</div>
               <div>{it.isPromo ? <em>{it.desc}</em> : it.desc}</div>
               <div>{it.qty}</div>
               <div>{it.price}</div>
@@ -198,7 +203,7 @@ export const PrintOrderView = ({ sale, outlets }: { sale: SaleRecord | null, out
             <use href="#pov-phone"/>
           </svg>
         </div>
-        <div className="abs f-phone">[0314-1421965]</div>
+        <div className="abs f-phone">03141421965</div>
         <div className="abs code-bot">CODE</div>
         <div className="abs code-bot-n" style={{ fontSize: (outletCode || '').length > 6 ? '30px' : (outletCode || '').length > 3 ? '42px' : '60px' }}>
           {outletCode}
@@ -251,7 +256,7 @@ export const PrintOrderView = ({ sale, outlets }: { sale: SaleRecord | null, out
           .warsa-invoice .code-top-n { position: absolute; right: 20px; width: 200px; top: 108px; text-align: center; color: var(--red); font-weight: 700; font-family: 'Oswald', sans-serif; line-height: 1; white-space: nowrap; display: flex; align-items: center; justify-content: center; overflow: visible; }
           .warsa-invoice .brand-small { position: absolute; left: 55px; width: auto; top: 38px; text-align: left; color: #fff; font: 700 28px/1 'Oswald', sans-serif; letter-spacing: 1.5px; }
           .warsa-invoice .brand-big { position: absolute; left: 55px; width: auto; top: 68px; text-align: left; color: #fff; font: 700 102px/1 'Oswald', sans-serif; letter-spacing: 2px; transform: scaleY(1.02); }
-          .warsa-invoice .brand-sub { position: absolute; left: 55px; width: auto; top: 174px; text-align: left; color: #fff; font: 600 16px/1 'Barlow', sans-serif; letter-spacing: 3.5px; }
+          .warsa-invoice .brand-sub { position: absolute; left: 55px; width: auto; top: 174px; text-align: left; color: #fff; font: 600 16px/1 'Barlow', sans-serif; letter-spacing: 2px; }
           .warsa-invoice .addr-pin { left: 62px; top: 250px; width: 36px; height: 46px; }
           .warsa-invoice .addr-text { left: 119px; top: 247px; font: 700 22px/26px 'Barlow', sans-serif; color: #111; }
           .warsa-invoice .addr-div { left: 481px; top: 249px; width: 1px; height: 52px; background: #c9c9c9; }
@@ -268,6 +273,7 @@ export const PrintOrderView = ({ sale, outlets }: { sale: SaleRecord | null, out
           .warsa-invoice .row .lbl.s { font: 600 21px/1 'Oswald', sans-serif; }
           .warsa-invoice .row .val { font: 600 22px/1 'Oswald', sans-serif; color: #222; letter-spacing: .3px; }
           .warsa-invoice .row .val.sm { font: 600 19px/1 'Oswald', sans-serif; }
+          .warsa-invoice .row .people { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; padding-left: 8px; font: 600 14px/1 'Oswald', sans-serif; }
           .warsa-invoice .row .inv-num-cell { font: 700 22px/1 'Oswald', sans-serif; color: #111; justify-content: center; padding: 0; letter-spacing: 1px; }
           .warsa-invoice .row .date { justify-content: center; padding: 0; font: 600 22px/1 'Barlow', sans-serif; color: #222; }
           .warsa-invoice .r1 { top: 322px; grid-template-columns: 67px 187px 288px 170px 218px; }
@@ -284,9 +290,9 @@ export const PrintOrderView = ({ sale, outlets }: { sale: SaleRecord | null, out
           .warsa-invoice .side-wa { left: 1029px; top: 784px; width: 34px; height: 34px; }
           .warsa-invoice .side-num2 { left: 1024px; top: 828px; writing-mode: vertical-rl; font: 600 27px/1 'Oswald', sans-serif; letter-spacing: 1.5px; color: #222; white-space: nowrap; }
           .warsa-invoice .side-num2 small { font: 500 22px/1 'Oswald', sans-serif; letter-spacing: 1px; }
-          .warsa-invoice .th { left: 35px; top: 588px; width: 925px; height: 52px; background: var(--red); display: grid; grid-template-columns: 177px 244px 166px 169px 169px; color: #fff; }
+          .warsa-invoice .th { left: 35px; top: 588px; width: 925px; height: 52px; background: var(--red); display: grid; grid-template-columns: 421px 166px 169px 169px; color: #fff; }
           .warsa-invoice .th div { display: flex; align-items: center; justify-content: center; font: 600 22px/1 'Oswald', sans-serif; letter-spacing: .4px; }
-          .warsa-invoice .tr { position: absolute; left: 35px; width: 925px; display: grid; grid-template-columns: 177px 244px 166px 169px 169px; border-bottom: 1px solid var(--red-line); border-left: 1px solid var(--red-line); }
+          .warsa-invoice .tr { position: absolute; left: 35px; width: 925px; display: grid; grid-template-columns: 421px 166px 169px 169px; border-bottom: 1px solid var(--red-line); border-left: 1px solid var(--red-line); }
           .warsa-invoice .tr div { display: flex; align-items: center; justify-content: center; border-right: 1px solid var(--red-line); font: 600 22px/1 'Oswald', sans-serif; color: #1c1c1c; }
           .warsa-invoice .tr div:last-child { border-right: 1px solid var(--red-line); }
           .warsa-invoice .tr.alt { background: var(--pink); }

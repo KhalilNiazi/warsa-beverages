@@ -80,6 +80,8 @@ export function Sales() {
   const [address, setAddress] = useState('');
   const [contactNumber, setContactNumber] = useState('');
   const [ownerName, setOwnerName] = useState('');
+  const [deliveryManName, setDeliveryManName] = useState('');
+  const [deliveryManPhone, setDeliveryManPhone] = useState('');
   const [status, setStatus] = useState('');
   
   // Search shop by Sr No
@@ -335,6 +337,8 @@ export function Sales() {
 
   const handleEdit = (sale: SaleRecord) => {
     setEditingSaleId(sale.ID);
+    setDeliveryManName(sale.DriverName || '');
+    setDeliveryManPhone(sale.DriverContactNumber || '');
     const outlet = outlets.find(o => o.ID === sale.OutletID || o.Name === sale.OutletName || o.Address === sale.Address);
     selectOutlet(outlet || null);
     if (!outlet) {
@@ -391,6 +395,8 @@ export function Sales() {
       Address: address,
       ContactNumber: contactNumber,
       OwnerName: ownerName,
+      DriverName: deliveryManName.trim(),
+      DriverContactNumber: deliveryManPhone.trim(),
       Status: status,
       BookedBy: editingSaleId ? (sales.find(s => s.ID === editingSaleId)?.BookedBy || currentUser?.name || 'Order Booker') : (currentUser?.name || 'Order Booker'),
       DeliveryStatus: 'DELIVERED',
@@ -421,6 +427,8 @@ export function Sales() {
       setInvoiceToPrint(sale);
     }
     setEditingSaleId(null);
+    setDeliveryManName('');
+    setDeliveryManPhone('');
     selectOutlet(null);
     setOrderItems([]);
     setDiscount(0);
@@ -492,7 +500,7 @@ export function Sales() {
 
   return (
     <>
-      <PrintOrderView sale={printSale} outlets={outlets} />
+      <PrintOrderView sale={printSale} outlets={outlets} inventory={inventory} />
       
       {showIframeWarning && (
         <div className="bg-amber-100 text-amber-800 p-4 rounded-md mb-4 max-w-7xl mx-auto flex justify-between items-center print:hidden text-sm">
@@ -594,7 +602,7 @@ export function Sales() {
 
         <ResponsiveDialog 
           isOpen={isRecording} 
-          onClose={() => { setIsRecording(false); setEditingSaleId(null); setIsPromoEnabled(false); setPromoCasesCount(1); }} 
+          onClose={() => { setIsRecording(false); setEditingSaleId(null); setDeliveryManName(''); setDeliveryManPhone(''); setIsPromoEnabled(false); setPromoCasesCount(1); }}
           title={editingSaleId ? "Edit Order" : "Book New Order"}
         >
           <form onSubmit={handleRecordSale} className="space-y-6 pb-12 md:pb-0">
@@ -791,6 +799,24 @@ export function Sales() {
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-gray-600 uppercase">Owner Name</label>
                 <Input placeholder="e.g. SHARJEEL SB" value={ownerName} onChange={e => setOwnerName(e.target.value)} disabled={!!selectedOutletId} />
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <h3 className="text-xs font-bold uppercase text-gray-700">Order Booker &amp; Delivery Man</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-gray-600 uppercase">Order Booker</label>
+                  <Input value={currentUser?.name || 'Order Booker'} readOnly />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-gray-600 uppercase">Delivery Man Name</label>
+                  <Input placeholder="Enter delivery man name" value={deliveryManName} onChange={e => setDeliveryManName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-gray-600 uppercase">Delivery Man Contact Number</label>
+                  <Input type="tel" placeholder="Enter delivery man contact number" value={deliveryManPhone} onChange={e => setDeliveryManPhone(e.target.value)} />
+                </div>
               </div>
             </div>
 
@@ -1015,7 +1041,7 @@ export function Sales() {
             </div>
             
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-6">
-              <Button type="button" variant="outline" onClick={() => { setIsRecording(false); setIsPromoEnabled(false); setPromoCasesCount(1); }}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => { setIsRecording(false); setEditingSaleId(null); setDeliveryManName(''); setDeliveryManPhone(''); setIsPromoEnabled(false); setPromoCasesCount(1); }}>Cancel</Button>
               <Button type="submit" disabled={regularItems.length === 0} className="bg-red-600 hover:bg-red-700 text-white">
                 {editingSaleId ? "Update Order" : "Save & Book Order"}
               </Button>
@@ -1348,6 +1374,7 @@ export function Sales() {
         isOpen={!!invoiceToPrint}
         sale={invoiceToPrint}
         outlets={outlets}
+        inventory={inventory}
         onClose={() => setInvoiceToPrint(null)}
       />
 
@@ -1355,6 +1382,7 @@ export function Sales() {
         isOpen={!!printedInvoiceToShow}
         sale={printedInvoiceToShow}
         outlets={outlets}
+        inventory={inventory}
         onClose={() => setPrintedInvoiceToShow(null)}
       />
 

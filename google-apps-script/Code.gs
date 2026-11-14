@@ -74,11 +74,11 @@ SCHEMAS[SHEETS.INVENTORY] = [
 ];
 
 SCHEMAS[SHEETS.SALES] = [
-  'ID', 'Date', 'OutletID', 'OutletSrNo', 'OutletName', 'OutletCode', 'Route', 'Address', 
-  'ContactNumber', 'OwnerName', 'OrderBooker', 'BookedBy', 'DeliveryStatus', 
-  'RejectionReason', 'RejectionNotes', 'VehicleNumber', 'DriverName', 
-  'TotalCases', 'LoadedCases', 'DeliveredCases', 'RejectedCases', 
-  'TotalAmount', 'ActualAmount', 'Discount', 'GrandTotal', 'ActualGrandTotal', 
+  'ID', 'Date', 'OutletID', 'OutletSrNo', 'OutletName', 'OutletCode', 'Route', 'Address',
+  'ContactNumber', 'OwnerName', 'OrderBooker', 'BookedBy', 'DeliveryStatus',
+  'RejectionReason', 'RejectionNotes', 'VehicleNumber', 'DriverName', 'DriverContactNumber',
+  'TotalCases', 'LoadedCases', 'DeliveredCases', 'RejectedCases',
+  'TotalAmount', 'ActualAmount', 'Discount', 'GrandTotal', 'ActualGrandTotal',
   'PaymentStatus', 'CashCollected', 'CreditAmount', 'PaymentMethod', 'Items', 'CreatedAt',
   'UpdatedAt', 'CreatedBy', 'UpdatedBy', 'OwnerUID'
 ];
@@ -133,7 +133,7 @@ SCHEMAS[SHEETS.ROUTES] = [
 
 SCHEMAS[SHEETS.USERS] = [
   'id', 'name', 'username', 'role', 'roleTitle', 'department', 'phone', 
-  'assignedRoute', 'vehicleNumber', 'allowedPages', 'defaultPage', 'modulePermissions', 'twoFactorEnabled', 'createdAt'
+  'assignedRoute', 'vehicleNumber', 'allowedPages', 'defaultPage', 'twoFactorEnabled', 'createdAt'
 ];
 
 SCHEMAS[SHEETS.ORDER_BOOKERS] = [
@@ -763,8 +763,6 @@ function writeSheetRow(sheetName, item, idKey, authUser) {
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
     sheet = ensureSheetWithSchema(sheetName);
-  } else if (sheetName === SHEETS.USERS) {
-    sheet = ensureSheetWithSchema(sheetName);
   }
 
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -1072,14 +1070,16 @@ function ensureSheetWithSchema(name) {
     sheet.appendRow(headers);
     formatBrandHeader(sheet, headers.length);
   }
-  if (name === SHEETS.USERS) {
-    var existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    if (existingHeaders.indexOf('modulePermissions') === -1) {
-      var newColumn = existingHeaders.length + 1;
-      sheet.getRange(1, newColumn).setValue('modulePermissions');
-      formatBrandHeader(sheet, newColumn);
+
+  if (name === SHEETS.SALES) {
+    var salesHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    if (salesHeaders.indexOf('DriverContactNumber') === -1) {
+      var newSalesColumn = salesHeaders.length + 1;
+      sheet.getRange(1, newSalesColumn).setValue('DriverContactNumber');
+      formatBrandHeader(sheet, newSalesColumn);
     }
   }
+
   return sheet;
 }
 

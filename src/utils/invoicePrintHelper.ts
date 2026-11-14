@@ -1,4 +1,4 @@
-import { SaleRecord, Outlet } from '@/src/types';
+import { InventoryItem, SaleRecord } from '@/src/types';
 
 export interface ProcessedInvoiceItem {
   num: number;
@@ -15,7 +15,10 @@ export interface ProcessedInvoiceItem {
  * are always present in the printed order invoice.
  * Even if the shopkeeper has not added an item, its quantity will show 0 and amount 0.
  */
-export function buildStandardInvoicePrintItems(sale: SaleRecord, outlet?: Outlet): ProcessedInvoiceItem[] {
+export function buildStandardInvoicePrintItems(
+  sale: SaleRecord,
+  inventory: InventoryItem[] = []
+): ProcessedInvoiceItem[] {
   const rawItems = sale.Items || [];
 
   const getItemText = (i: any) => 
@@ -58,22 +61,35 @@ export function buildStandardInvoicePrintItems(sale: SaleRecord, outlet?: Outlet
     return Boolean(i.IsPromo || (i.Price === 0 && getItemText(i).includes('promo')));
   });
 
-  // Standard or custom prices
-  const price500 = item500?.Price !== undefined && item500.Price > 0
-    ? item500.Price
-    : (outlet?.CustomRates?.['1'] ?? outlet?.CustomRates?.['WAR-500ML'] ?? 370);
+  const inventoryFor = (saleItem: typeof item500, size: '500' | '1500' | '5l' | '19') => {
+    if (saleItem?.ProductID) {
+      const byId = inventory.find(product => product.ID === saleItem.ProductID);
+      if (byId) return byId;
+    }
 
-  const price1500 = item1500?.Price !== undefined && item1500.Price > 0
-    ? item1500.Price
-    : (outlet?.CustomRates?.['2'] ?? outlet?.CustomRates?.['WAR-1.5L'] ?? 370);
+    const textOf = (product: InventoryItem) =>
+      `${product.Name} ${product.Size || ''} ${product.SKU}`.toLowerCase();
+    const matchesSize = (product: InventoryItem) => {
+      const text = textOf(product);
+      if (size === '500') return text.includes('500') && !text.includes('promo');
+      if (size === '1500') return text.includes('1500') || text.includes('1.5');
+      if (size === '5l') return /\b5\s*l\b|\b5000\s*ml\b/.test(text) || product.ID === '3';
+      return text.includes('19') || product.ID === '4';
+    };
 
-  const price5L = item5L?.Price !== undefined && item5L.Price > 0
-    ? item5L.Price
-    : (outlet?.CustomRates?.['3'] ?? outlet?.CustomRates?.['WAR-5L'] ?? 450);
+    return inventory.find(matchesSize);
+  };
+  const productPrice = (saleItem: typeof item500, size: '500' | '1500' | '5l' | '19') => {
+    const soldPrice = Number(saleItem?.Price);
+    if (Number.isFinite(soldPrice) && soldPrice > 0) return soldPrice;
+    const stockPrice = Number(inventoryFor(saleItem, size)?.Price);
+    return Number.isFinite(stockPrice) && stockPrice > 0 ? stockPrice : 0;
+  };
 
-  const price19L = item19L?.Price !== undefined && item19L.Price > 0
-    ? item19L.Price
-    : (outlet?.CustomRates?.['4'] ?? outlet?.CustomRates?.['WAR-19L'] ?? 180);
+  const price500 = productPrice(item500, '500');
+  const price1500 = productPrice(item1500, '1500');
+  const price5L = productPrice(item5L, '5l');
+  const price19L = productPrice(item19L, '19');
 
   // Quantities: if not added by shopkeeper, show 0
   const qty500 = item500 ? (item500.Quantity ?? item500.BookedQty ?? (item500 as any).Qty ?? 0) : 0;

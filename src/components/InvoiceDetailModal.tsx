@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/src/components/ui/button';
-import { SaleRecord, Outlet, PaymentRecord } from '@/src/types';
-import { fetchOutlets, fetchSales, fetchPayments } from '@/src/api';
+import { InventoryItem, SaleRecord, Outlet, PaymentRecord } from '@/src/types';
+import { fetchOutlets, fetchSales, fetchPayments, fetchInventory } from '@/src/api';
 import { format } from 'date-fns';
 import { Printer } from 'lucide-react';
 import { PrintOrderView } from '@/src/components/PrintOrderView';
@@ -17,16 +17,19 @@ export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps
   const [currentBalance, setCurrentBalance] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [outletsList, setOutletsList] = useState<Outlet[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
 
   useEffect(() => {
     const loadLedgerData = async () => {
       try {
-        const [outlets, sales, payments] = await Promise.all([
+        const [outlets, sales, payments, inventoryItems] = await Promise.all([
           fetchOutlets(),
           fetchSales(),
-          fetchPayments()
+          fetchPayments(),
+          fetchInventory()
         ]);
         setOutletsList(outlets);
+        setInventory(inventoryItems);
 
         const outlet = outlets.find(o => o.Name === invoice.OutletName);
         if (outlet) {
@@ -71,7 +74,7 @@ export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps
       className="fixed inset-0 flex items-end md:items-center justify-center sm:p-4 bg-slate-950/75 backdrop-blur-sm print:bg-transparent print:p-0"
     >
       <div className="bg-white rounded-t-2xl md:rounded-xl shadow-2xl w-full md:w-auto md:min-w-[600px] max-w-2xl max-h-[90dvh] flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-8 md:zoom-in-95 duration-200 print:shadow-none print:max-h-none print:overflow-visible border border-slate-200">
-        <PrintOrderView sale={invoice} outlets={outletsList} />
+        <PrintOrderView sale={invoice} outlets={outletsList} inventory={inventory} />
         
         <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 print:hidden">
           <div>
@@ -122,7 +125,7 @@ export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {buildStandardInvoicePrintItems(invoice, outletsList.find(o => o.Name === invoice.OutletName)).map((item, idx) => {
+                  {buildStandardInvoicePrintItems(invoice, inventory).map((item, idx) => {
                     const isQtyZero = item.qty === 0 || item.qty === '0';
                     return (
                       <tr key={idx} className={item.isPromo ? "bg-emerald-50/60" : undefined}>

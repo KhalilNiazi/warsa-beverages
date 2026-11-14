@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { SaleRecord, Outlet } from '@/src/types';
+import { InventoryItem, SaleRecord, Outlet } from '@/src/types';
 import { format } from 'date-fns';
 import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
 import { Button } from '@/src/components/ui/button';
@@ -13,6 +13,7 @@ import { jsPDF } from 'jspdf';
 interface DigitalInvoiceModalProps {    
   sale: SaleRecord | null;
   outlets: Outlet[];
+  inventory: InventoryItem[];
   isOpen: boolean;
   onClose: () => void;
   exportFormat?: 'png' | 'pdf' | null;
@@ -82,6 +83,7 @@ const SHEET_CSS = `
 export function DigitalInvoiceModal({
   sale,
   outlets,
+  inventory,
   isOpen,
   onClose,
   exportFormat = null,
@@ -156,15 +158,15 @@ export function DigitalInvoiceModal({
   try { settings = getSettings() || {}; } catch { /* ignore */ }
   const companyName = settings.companyName || 'KFM BEVERAGES (WARSA)';
   const companyAddress = settings.companyAddress || '40-1 Saddar Bazar, Dhaka Road, Lahore Cantt';
-  const companyPhone = settings.companyPhone || '0314-1421965';
-  const companyNTN = settings.companyNTN || '';
+  const companyPhone = '03141421965';
+  const companyNTN = settings.companyNTN || 'H039315';
 
   const outlet = outlets.find(o =>
     o.Name === sale.OutletName || (sale.OutletCode && o.Code === sale.OutletCode) || o.Address === sale.Address
   );
   const outletCode = outlet?.Code || sale.OutletCode || '-';
   const balance = outlet?.OpeningBalance !== undefined ? outlet.OpeningBalance : sale.GrandTotal;
-  const items = buildStandardInvoicePrintItems(sale, outlet);
+  const items = buildStandardInvoicePrintItems(sale, inventory);
 
   let dateText = sale.Date || '';
   try { if (sale.Date) dateText = format(new Date(sale.Date), 'dd-MMM-yyyy'); } catch { /* keep raw */ }
@@ -200,7 +202,7 @@ export function DigitalInvoiceModal({
       <div className="dinv-hd">
         <div>
           <div className="dinv-co">{companyName.toUpperCase()}</div>
-          <p>{companyAddress} &bull; Tel: {companyPhone} &bull; NTN: {companyNTN || '—'}</p>
+          <p>{companyAddress} &bull; Tel: {companyPhone} &bull; NTN: {companyNTN}</p>
         </div>
         <div className="dinv-rt">
           <b>{taxRate > 0 ? 'TAX INVOICE' : 'INVOICE'}</b><br />
@@ -221,7 +223,7 @@ export function DigitalInvoiceModal({
         </div>
         <div>
           <div><b>Section:</b> {sale.Route || '-'}</div>
-          <div><b>Order Booker:</b> {sale.BookedBy || sale.OrderBooker || outlet?.OB || '-'}</div>
+          <div><b>Order Booker:</b> {outlet?.OB || sale.OrderBooker || sale.BookedBy || '-'}</div>
           <div><b>Delivery Man:</b> {sale.DriverName || '-'}</div>
         </div>
         <div>
@@ -234,7 +236,6 @@ export function DigitalInvoiceModal({
       <table className="dinv-items">
         <thead>
           <tr>
-            <th style={{ width: 34 }}>Sr.</th>
             <th>Description</th>
             <th className="c" style={{ width: 48 }}>Qty</th>
             <th className="r" style={{ width: 70 }}>Trade Price</th>
@@ -244,10 +245,9 @@ export function DigitalInvoiceModal({
           </tr>
         </thead>
         <tbody>
-          <tr className="ex"><td colSpan={7}>{taxRate > 0 ? `Taxable @ ${taxRate}%` : 'Exempted'}</td></tr>
+          <tr className="ex"><td colSpan={6}>{taxRate > 0 ? `Taxable @ ${taxRate}%` : 'Exempted'}</td></tr>
           {rows.map((r, i) => (
             <tr key={i}>
-              <td>{i + 1}</td>
               <td>{skuFor(String(r.it.desc))} - {full(String(r.it.desc))}</td>
               <td className="c">{money(r.it.qty)}</td>
               <td className="r">{typeof r.it.price === 'number' ? money(r.it.price) : r.it.price}</td>
@@ -258,7 +258,7 @@ export function DigitalInvoiceModal({
           ))}
           {['Sub Total:', 'Grand Total:'].map(label => (
             <tr key={label} className="t">
-              <td></td><td className="tl">{label}</td>
+              <td className="tl">{label}</td>
               <td className="c">{money(totalQty)}</td><td></td>
               <td className="r">{money(totalGross)}</td>
               <td className="r">{fmt(totalOffer)}</td>
