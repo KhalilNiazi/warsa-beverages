@@ -1436,6 +1436,8 @@ const getMockInventory = (): InventoryItem[] => {
   return [];
 };
 
+export const getInventory = (): InventoryItem[] => getMockInventory();
+
 const getMockOutlets = (): Outlet[] => {
   const data = localStorage.getItem(MOCK_OUTLETS_KEY);
   if (data) {
@@ -1470,6 +1472,8 @@ const getMockSales = (): SaleRecord[] => {
   }
   return [];
 };
+
+export const getSales = (): SaleRecord[] => getMockSales();
 
 // --- DISPATCH LOADS ---
 const getMockLoads = (): DispatchLoad[] => {
@@ -2345,16 +2349,21 @@ export const deleteOrderBooker = async (id: string): Promise<void> => {
 // --- DELIVERY MEN ---
 const MOCK_DELIVERY_MEN_KEY = 'warsa_mock_delivery_men_v1';
 
-export const fetchDeliveryMen = async (forceRefresh: boolean = false): Promise<DeliveryMan[]> => {
-  await ensureDataFetchedFromGoogleSheet(forceRefresh);
+export const getDeliveryMen = (): DeliveryMan[] => {
   try {
     const data = JSON.parse(localStorage.getItem(MOCK_DELIVERY_MEN_KEY) || '[]');
-    if (!Array.isArray(data)) return [];
-    await replaceStoreInIDB(STORES.DELIVERY_MEN, data).catch(() => {});
-    return data;
-  } catch {
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('[Delivery Men] Could not read cached delivery men:', error);
     return [];
   }
+};
+
+export const fetchDeliveryMen = async (forceRefresh: boolean = false): Promise<DeliveryMan[]> => {
+  await ensureDataFetchedFromGoogleSheet(forceRefresh);
+  const data = getDeliveryMen();
+  await replaceStoreInIDB(STORES.DELIVERY_MEN, data).catch(() => {});
+  return data;
 };
 
 export const saveDeliveryMan = async (deliveryMan: DeliveryMan): Promise<void> => {

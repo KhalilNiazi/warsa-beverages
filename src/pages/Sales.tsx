@@ -5,11 +5,15 @@ import { Input } from '@/src/components/ui/input';
 import { Badge } from '@/src/components/ui/badge';
 import { 
   fetchInventory, 
+  getInventory,
   saveInventoryItem,
   fetchSales, 
+  getSales,
   addSaleRecord, 
   fetchOutlets, 
+  getOutlets,
   fetchDeliveryMen,
+  getDeliveryMen,
   updateSale, 
   deleteSale, 
   canModifyData,
@@ -53,7 +57,8 @@ export function Sales() {
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [deliveryMen, setDeliveryMen] = useState<DeliveryMan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [addProductForIdx, setAddProductForIdx] = useState<number | null>(null);
   const [newProduct, setNewProduct] = useState({ Name: '', SKU: '', Size: '', Price: '', BottlesPerCase: '24', Stock: '' });
@@ -96,8 +101,17 @@ export function Sales() {
   const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
   const [saleToDelete, setSaleToDelete] = useState<string | null>(null);
 
+  const loadCachedData = () => {
+    setInventory(getInventory());
+    setOutlets(getOutlets());
+    setDeliveryMen(getDeliveryMen());
+    setSales(getSales().sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime()));
+  };
+
   const loadData = async () => {
-    setLoading(true);
+    loadCachedData();
+    setLoading(false);
+    setIsRefreshing(true);
     try {
       const [invData, salesData, outletsData, deliveryMenData] = await Promise.all([
         fetchInventory(),
@@ -110,16 +124,16 @@ export function Sales() {
       setDeliveryMen(deliveryMenData);
       setSales(salesData.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime()));
     } catch (err) {
-      console.error(err);
+      console.error('[Orders] Could not refresh order data:', err);
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     loadData();
-    const handleDataRefreshed = () => {
-      loadData();
-    };
+    const handleDataRefreshed = () => loadCachedData();
     window.addEventListener('warsa_data_refreshed', handleDataRefreshed);
     return () => window.removeEventListener('warsa_data_refreshed', handleDataRefreshed);
   }, []);
@@ -1167,7 +1181,7 @@ export function Sales() {
                       {filteredSales.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="px-6 py-8 text-center text-gray-400 text-xs">
-                            No orders found.
+                            {isRefreshing ? 'No cached orders yet. Syncing orders...' : 'No orders found.'}
                           </td>
                         </tr>
                       ) : (
@@ -1290,7 +1304,9 @@ export function Sales() {
                 {/* Mobile Card View */}
                 <div className="md:hidden flex flex-col divide-y divide-gray-100">
                   {filteredSales.length === 0 ? (
-                    <div className="p-8 text-center text-gray-500 text-xs">No orders found.</div>
+                    <div className="p-8 text-center text-gray-500 text-xs">
+                      {isRefreshing ? 'No cached orders yet. Syncing orders...' : 'No orders found.'}
+                    </div>
                   ) : (
                     filteredSales.map((sale) => {
                       const status = sale.DeliveryStatus || 'DELIVERED';
