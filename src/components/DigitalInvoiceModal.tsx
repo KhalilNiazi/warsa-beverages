@@ -157,7 +157,7 @@ export function DigitalInvoiceModal({
   let settings: any = {};
   try { settings = getSettings() || {}; } catch { /* ignore */ }
   const companyName = settings.companyName || 'KFM BEVERAGES (WARSA)';
-  const companyAddress = settings.companyAddress || '40-1 Saddar Bazar, Dhaka Road, Lahore Cantt';
+  const companyAddress = settings.companyAddress || '40-1 Dhaka Road, Saddar Bazar, Lahore Cantt';
   const companyPhone = '03141421965';
   const companyNTN = settings.companyNTN || 'H039315';
 
