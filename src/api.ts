@@ -1615,16 +1615,20 @@ function normalizePulledOutlets(outlets: any[]): Outlet[] {
 // --- AUTOMATIC DEFAULT GOOGLE SHEET DATA FETCH ENGINE ---
 let initialFetchPromise: Promise<boolean> | null = null;
 let hasInitiallyFetched = false;
+let nextFetchAttemptAt = 0;
 
 export const ensureDataFetchedFromGoogleSheet = async (forceRefresh: boolean = false): Promise<boolean> => {
   if (hasInitiallyFetched && !forceRefresh) {
     return true;
   }
-  if (initialFetchPromise && !forceRefresh) {
-    return initialFetchPromise;
+  if (initialFetchPromise) {
+    return forceRefresh ? initialFetchPromise : false;
+  }
+  if (!forceRefresh && Date.now() < nextFetchAttemptAt) {
+    return false;
   }
 
-  initialFetchPromise = (async () => {
+  const fetchPromise = Promise.resolve().then(async () => {
     try {
       // 1. Purge legacy hardcoded mock records from browser cache
       purgeTemporaryMockDataFromStorage();
@@ -1645,17 +1649,21 @@ export const ensureDataFetchedFromGoogleSheet = async (forceRefresh: boolean = f
       const pullPromise = pullAllDataFromGoogleSheet();
       const result = await Promise.race([pullPromise, timeoutPromise]);
       hasInitiallyFetched = result.success;
+      nextFetchAttemptAt = result.success ? 0 : Date.now() + 30_000;
       return result.success;
     } catch (err) {
       console.warn('[Google Sheet] Default fetch notice:', err);
       hasInitiallyFetched = false;
+      nextFetchAttemptAt = Date.now() + 30_000;
       return false;
     } finally {
       initialFetchPromise = null;
     }
-  })();
+  });
 
-  return initialFetchPromise;
+  initialFetchPromise = fetchPromise;
+  if (!forceRefresh) return false;
+  return fetchPromise;
 };
 
 // --- INVENTORY API ---
@@ -3056,6 +3064,26 @@ export const pushAllDataToGoogleSheet = async (customUrl?: string): Promise<Goog
   return res;
 };
 
+const replaceCachedCollection = async <T>(
+  storageKey: string,
+  storeName: typeof STORES[keyof typeof STORES],
+  records: T[]
+): Promise<boolean> => {
+  const serialized = JSON.stringify(records);
+  const cached = localStorage.getItem(storageKey);
+  if (cached !== null) {
+    try {
+      if (JSON.stringify(JSON.parse(cached)) === serialized) return false;
+    } catch {
+      // Replace a malformed cache with the successfully fetched records.
+    }
+  }
+
+  localStorage.setItem(storageKey, serialized);
+  await replaceStoreInIDB(storeName, records);
+  return true;
+};
+
 /**
  * Pull all cloud records from Google Sheets into local high-speed persistent store.
  */
@@ -3085,76 +3113,86 @@ export const pullAllDataFromGoogleSheet = async (customUrl?: string): Promise<{
     const finalInventory = normalized.length > 0 || localInventory.length === 0
       ? normalized
       : localInventory;
-    localStorage.setItem(MOCK_INVENTORY_KEY, JSON.stringify(finalInventory));
     if (normalized.length > 0 || localInventory.length === 0) {
-      await replaceStoreInIDB(STORES.INVENTORY, finalInventory).catch(() => {});
+      if (await replaceCachedCollection(MOCK_INVENTORY_KEY, STORES.INVENTORY, finalInventory)) {
+        counts['Inventory'] = finalInventory.length;
+      }
     }
-    counts['Inventory'] = finalInventory.length;
   }
   if (Array.isArray(data.sales)) {
     const normalized = normalizePulledSales(data.sales);
-    localStorage.setItem(MOCK_SALES_KEY, JSON.stringify(normalized));
-    await replaceStoreInIDB(STORES.SALES, normalized).catch(() => {});
-    counts['Sales'] = normalized.length;
+    if (await replaceCachedCollection(MOCK_SALES_KEY, STORES.SALES, normalized)) {
+      counts['Sales'] = normalized.length;
+    }
   }
   if (Array.isArray(data.outlets)) {
-    let normalized = normalizePulledOutlets(data.outlets);
-    localStorage.setItem(MOCK_OUTLETS_KEY, JSON.stringify(normalized));
-    await replaceStoreInIDB(STORES.OUTLETS, normalized).catch(() => {});
-    counts['Outlets'] = normalized.length;
+    const normalized = normalizePulledOutlets(data.outlets);
+    if (await replaceCachedCollection(MOCK_OUTLETS_KEY, STORES.OUTLETS, normalized)) {
+      counts['Outlets'] = normalized.length;
+    }
   }
   if (Array.isArray(data.dispatches)) {
-    localStorage.setItem(MOCK_LOADS_KEY, JSON.stringify(data.dispatches));
-    await replaceStoreInIDB(STORES.DISPATCH, data.dispatches).catch(() => {});
-    counts['Dispatches'] = data.dispatches.length;
+    if (await replaceCachedCollection(MOCK_LOADS_KEY, STORES.DISPATCH, data.dispatches)) {
+      counts['Dispatches'] = data.dispatches.length;
+    }
   }
   if (Array.isArray(data.cashSlips)) {
-    localStorage.setItem(MOCK_CASH_SLIPS_KEY, JSON.stringify(data.cashSlips));
-    await replaceStoreInIDB(STORES.CASH_SLIPS, data.cashSlips).catch(() => {});
-    counts['CashSlips'] = data.cashSlips.length;
+    if (await replaceCachedCollection(MOCK_CASH_SLIPS_KEY, STORES.CASH_SLIPS, data.cashSlips)) {
+      counts['CashSlips'] = data.cashSlips.length;
+    }
   }
   if (Array.isArray(data.payments)) {
-    localStorage.setItem(MOCK_PAYMENTS_KEY, JSON.stringify(data.payments));
-    await replaceStoreInIDB(STORES.PAYMENTS, data.payments).catch(() => {});
-    counts['Payments'] = data.payments.length;
+    if (await replaceCachedCollection(MOCK_PAYMENTS_KEY, STORES.PAYMENTS, data.payments)) {
+      counts['Payments'] = data.payments.length;
+    }
   }
   if (Array.isArray(data.dailyClosings)) {
-    localStorage.setItem(MOCK_CLOSINGS_KEY, JSON.stringify(data.dailyClosings));
-    await replaceStoreInIDB(STORES.CLOSINGS, data.dailyClosings).catch(() => {});
-    counts['DailyClosings'] = data.dailyClosings.length;
+    if (await replaceCachedCollection(MOCK_CLOSINGS_KEY, STORES.CLOSINGS, data.dailyClosings)) {
+      counts['DailyClosings'] = data.dailyClosings.length;
+    }
   }
   if (Array.isArray(data.routes)) {
-    const finalRoutes = data.routes;
-    localStorage.setItem(MOCK_ROUTES_KEY, JSON.stringify(finalRoutes));
-    await replaceStoreInIDB(STORES.ROUTES, finalRoutes).catch(() => {});
-    counts['Routes'] = finalRoutes.length;
+    if (await replaceCachedCollection(MOCK_ROUTES_KEY, STORES.ROUTES, data.routes)) {
+      counts['Routes'] = data.routes.length;
+    }
   }
   if (Array.isArray(data.stockInward)) {
-    localStorage.setItem(MOCK_STOCK_IN_KEY, JSON.stringify(data.stockInward));
-    await replaceStoreInIDB(STORES.STOCK_INWARD, data.stockInward).catch(() => {});
-    counts['StockInward'] = data.stockInward.length;
+    if (await replaceCachedCollection(MOCK_STOCK_IN_KEY, STORES.STOCK_INWARD, data.stockInward)) {
+      counts['StockInward'] = data.stockInward.length;
+    }
   }
   if (Array.isArray(data.stockMovements)) {
-    localStorage.setItem(MOCK_MOVEMENTS_KEY, JSON.stringify(data.stockMovements));
-    await replaceStoreInIDB(STORES.STOCK_MOVEMENTS, data.stockMovements).catch(() => {});
-    counts['StockMovements'] = data.stockMovements.length;
+    if (await replaceCachedCollection(MOCK_MOVEMENTS_KEY, STORES.STOCK_MOVEMENTS, data.stockMovements)) {
+      counts['StockMovements'] = data.stockMovements.length;
+    }
   }
   if (Array.isArray(data.users) && data.users.length > 0) {
     const hasAdmin = data.users.some((u: any) => u.role === 'SUPER_ADMIN' || u.username === 'admin');
     if (hasAdmin) {
-      localStorage.setItem(APP_USERS_KEY, JSON.stringify(data.users));
-      counts['Users'] = data.users.length;
+      const currentUsers = localStorage.getItem(APP_USERS_KEY);
+      let usersChanged = true;
+      if (currentUsers !== null) {
+        try {
+          usersChanged = JSON.stringify(JSON.parse(currentUsers)) !== JSON.stringify(data.users);
+        } catch {
+          usersChanged = true;
+        }
+      }
+      if (usersChanged) {
+        localStorage.setItem(APP_USERS_KEY, JSON.stringify(data.users));
+        counts['Users'] = data.users.length;
+      }
     }
   }
   if (Array.isArray(data.orderBookers)) {
-    localStorage.setItem(MOCK_OBS_KEY, JSON.stringify(data.orderBookers));
-    await replaceStoreInIDB(STORES.ORDER_BOOKERS, data.orderBookers).catch(() => {});
-    counts['OrderBookers'] = data.orderBookers.length;
+    if (await replaceCachedCollection(MOCK_OBS_KEY, STORES.ORDER_BOOKERS, data.orderBookers)) {
+      counts['OrderBookers'] = data.orderBookers.length;
+    }
   }
   if (Array.isArray(data.deliveryMen)) {
-    localStorage.setItem(MOCK_DELIVERY_MEN_KEY, JSON.stringify(data.deliveryMen));
-    await replaceStoreInIDB(STORES.DELIVERY_MEN, data.deliveryMen).catch(() => {});
-    counts['DeliveryMen'] = data.deliveryMen.length;
+    if (await replaceCachedCollection(MOCK_DELIVERY_MEN_KEY, STORES.DELIVERY_MEN, data.deliveryMen)) {
+      counts['DeliveryMen'] = data.deliveryMen.length;
+    }
   }
 
   const now = new Date().toISOString();
@@ -3169,7 +3207,7 @@ export const pullAllDataFromGoogleSheet = async (customUrl?: string): Promise<{
     lastError: undefined
   });
 
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && Object.keys(counts).length > 0) {
     window.dispatchEvent(new CustomEvent('warsa_data_refreshed', { detail: counts }));
   }
 

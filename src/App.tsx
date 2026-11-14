@@ -76,8 +76,7 @@ export default function App() {
   // Automatic Google Sheet sync (push pending changes + periodic pull) while signed in
   useEffect(() => {
     if (!currentUser) return;
-    const canPull = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'ADMIN';
-    return startAutoSync({ canPull, pull: () => pullAllDataFromGoogleSheet() });
+    return startAutoSync({ canPull: true, pull: () => pullAllDataFromGoogleSheet() });
   }, [currentUser?.id, currentUser?.role]);
 
   useEffect(() => {
