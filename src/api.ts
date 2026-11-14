@@ -2185,11 +2185,7 @@ export const getOutlets = (): Outlet[] => {
   return getMockOutlets().map(outlet => linkOutletOrderBooker(outlet, orderBookers));
 };
 
-const getOrderBookerRoutes = (booker: OrderBooker): string[] => Array.isArray(booker.AssignedRoutes)
-  ? booker.AssignedRoutes
-  : typeof booker.AssignedRoutes === 'string'
-    ? booker.AssignedRoutes.split(',').map(route => route.trim()).filter(Boolean)
-    : [];
+const getOrderBookerRoutes = (booker: OrderBooker): string[] => booker.AssignedRoutes || [];
 
 const linkOutletOrderBooker = (outlet: Outlet, orderBookers: OrderBooker[]): Outlet => {
   const linkedById = outlet.OrderBookerID
