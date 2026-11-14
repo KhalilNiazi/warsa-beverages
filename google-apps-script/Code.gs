@@ -298,7 +298,7 @@ function handleRequest(e, isPost) {
       response = setup();
     }
     else if (action === 'getAllData' || action === 'bootstrap') {
-      response = getAllData();
+      response = getAllData(authUser);
     }
     else if (action === 'syncAll') {
       response = syncAll(payload, authUser);
@@ -498,13 +498,16 @@ function authorizeUserRole(user, action, payload) {
     return { allowed: false, reason: 'Authentication required' };
   }
 
-  // Only administrators may replace complete datasets or read the full
-  // bootstrap payload. Batch writes are checked per embedded mutation below.
-  if (['syncAll', 'getAllData', 'bootstrap'].indexOf(action) !== -1) {
+  // Only administrators may replace complete datasets. Full reads are filtered
+  // to each role's collection permissions in getAllData().
+  if (action === 'syncAll') {
     if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
       return { allowed: true };
     }
     return { allowed: false, reason: 'This operation requires administrator access' };
+  }
+  if (action === 'getAllData' || action === 'bootstrap') {
+    return { allowed: true };
   }
 
   if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
@@ -716,12 +719,16 @@ function logAuditTrail(uid, email, role, action, targetId, status, details, appC
 // 5. SECURE SHEET CRUD OPERATIONS
 // =========================================================================
 
-function readSheetRows(sheetName) {
-  var ss = getSpreadsheet_();
+function readSheetRows(sheetName, spreadsheet) {
+  var ss = spreadsheet || getSpreadsheet_();
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet) return [];
 
-  var data = sheet.getDataRange().getValues();
+  var lastRow = sheet.getLastRow();
+  var lastColumn = sheet.getLastColumn();
+  if (lastRow <= 1 || lastColumn < 1) return [];
+
+  var data = sheet.getRange(1, 1, lastRow, lastColumn).getValues();
   if (data.length <= 1) return [];
 
   var headers = data[0];
@@ -904,25 +911,50 @@ function deleteSheetRow(sheetName, idVal, idKey, authUser, mutationId) {
 // 6. BATCH MUTATIONS & FULL DATA ENGINE
 // =========================================================================
 
-function getAllData() {
+function getAllData(authUser) {
+  var spreadsheet = getSpreadsheet_();
+  var adminRoles = ['SUPER_ADMIN', 'ADMIN'];
+  var readRoles = {
+    inventory: ['ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'WAREHOUSE_MANAGER', 'ACCOUNTS', 'MANAGEMENT'],
+    sales: ['ASM', 'ORDER_BOOKER', 'SALESMAN', 'ACCOUNTS', 'MANAGEMENT'],
+    outlets: ['ASM', 'ORDER_BOOKER', 'SALESMAN', 'ACCOUNTS', 'MANAGEMENT'],
+    dispatches: ['ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'MANAGEMENT'],
+    cashSlips: ['ASM', 'SALESMAN', 'ACCOUNTS', 'MANAGEMENT'],
+    payments: ['ASM', 'SALESMAN', 'ACCOUNTS', 'MANAGEMENT'],
+    dailyClosings: ['ASM', 'ACCOUNTS', 'MANAGEMENT'],
+    stockInward: ['ASM', 'WAREHOUSE_MANAGER', 'MANAGEMENT'],
+    stockMovements: ['ASM', 'SALESMAN', 'WAREHOUSE_MANAGER', 'MANAGEMENT'],
+    routes: ['ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'MANAGEMENT'],
+    orderBookers: ['ASM', 'MANAGEMENT'],
+    deliveryMen: ['ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'MANAGEMENT']
+  };
+  var sheets = {
+    inventory: SHEETS.INVENTORY,
+    sales: SHEETS.SALES,
+    outlets: SHEETS.OUTLETS,
+    dispatches: SHEETS.DISPATCH,
+    cashSlips: SHEETS.CASH_SLIPS,
+    payments: SHEETS.PAYMENTS,
+    dailyClosings: SHEETS.CLOSINGS,
+    stockInward: SHEETS.STOCK_INWARD,
+    stockMovements: SHEETS.STOCK_MOVEMENTS,
+    routes: SHEETS.ROUTES,
+    users: SHEETS.USERS,
+    orderBookers: SHEETS.ORDER_BOOKERS,
+    deliveryMen: SHEETS.DELIVERY_MEN
+  };
+  var data = {};
+  var isAdmin = adminRoles.indexOf(authUser.role) !== -1;
+
+  Object.keys(sheets).forEach(function(key) {
+    var canRead = isAdmin || (readRoles[key] && readRoles[key].indexOf(authUser.role) !== -1);
+    if (canRead) data[key] = readSheetRows(sheets[key], spreadsheet);
+  });
+
   return {
     success: true,
     timestamp: new Date().toISOString(),
-    data: {
-      inventory: readSheetRows(SHEETS.INVENTORY),
-      sales: readSheetRows(SHEETS.SALES),
-      outlets: readSheetRows(SHEETS.OUTLETS),
-      dispatches: readSheetRows(SHEETS.DISPATCH),
-      cashSlips: readSheetRows(SHEETS.CASH_SLIPS),
-      payments: readSheetRows(SHEETS.PAYMENTS),
-      dailyClosings: readSheetRows(SHEETS.CLOSINGS),
-      stockInward: readSheetRows(SHEETS.STOCK_INWARD),
-      stockMovements: readSheetRows(SHEETS.STOCK_MOVEMENTS),
-      routes: readSheetRows(SHEETS.ROUTES),
-      users: readSheetRows(SHEETS.USERS),
-      orderBookers: readSheetRows(SHEETS.ORDER_BOOKERS),
-      deliveryMen: readSheetRows(SHEETS.DELIVERY_MEN)
-    }
+    data: data
   };
 }
 
