@@ -78,7 +78,7 @@ SCHEMAS[SHEETS.INVENTORY] = [
 SCHEMAS[SHEETS.SALES] = [
   'ID', 'Date', 'OutletID', 'OutletSrNo', 'OutletName', 'OutletCode', 'Route', 'Address',
   'ContactNumber', 'OwnerName', 'OrderBooker', 'BookedBy', 'DeliveryStatus',
-  'RejectionReason', 'RejectionNotes', 'VehicleNumber', 'DriverName', 'DriverContactNumber',
+  'RejectionReason', 'RejectionNotes', 'VehicleNumber', 'DriverName',
   'TotalCases', 'LoadedCases', 'DeliveredCases', 'RejectedCases',
   'TotalAmount', 'ActualAmount', 'Discount', 'GrandTotal', 'ActualGrandTotal',
   'PaymentStatus', 'CashCollected', 'CreditAmount', 'PaymentMethod', 'Items', 'CreatedAt',
@@ -87,7 +87,7 @@ SCHEMAS[SHEETS.SALES] = [
 
 SCHEMAS[SHEETS.OUTLETS] = [
   'ID', 'SrNo', 'Code', 'Name', 'Route', 'Area', 'Address', 'ContactNumber', 
-  'OwnerName', 'OB', 'CustomerType', 'Status', 'CustomRates', 'OpeningBalance', 
+  'OwnerName', 'OB', 'DeliveryManName', 'CustomerType', 'Status', 'CustomRates', 'OpeningBalance',
   'CreditLimit', 'CreatedAt', 'UpdatedAt', 'CreatedBy', 'UpdatedBy'
 ];
 
@@ -1086,14 +1086,13 @@ function ensureSheetWithSchema(name) {
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(headers);
     formatBrandHeader(sheet, headers.length);
-  }
-
-  if (name === SHEETS.SALES) {
-    var salesHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    if (salesHeaders.indexOf('DriverContactNumber') === -1) {
-      var newSalesColumn = salesHeaders.length + 1;
-      sheet.getRange(1, newSalesColumn).setValue('DriverContactNumber');
-      formatBrandHeader(sheet, newSalesColumn);
+  } else {
+    var existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var missingHeaders = headers.filter(function(header) { return existingHeaders.indexOf(header) === -1; });
+    if (missingHeaders.length) {
+      var firstNewColumn = sheet.getLastColumn() + 1;
+      sheet.getRange(1, firstNewColumn, 1, missingHeaders.length).setValues([missingHeaders]);
+      formatBrandHeader(sheet, firstNewColumn + missingHeaders.length - 1);
     }
   }
 

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { InventoryItem, SaleRecord, Outlet } from '@/src/types';
+import { DeliveryMan, InventoryItem, SaleRecord, Outlet } from '@/src/types';
 import { format } from 'date-fns';
 import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
 import { Button } from '@/src/components/ui/button';
@@ -24,9 +24,11 @@ interface InvoicePrintModalProps {
   inventory: InventoryItem[];
   isOpen: boolean;
   onClose: () => void;
+  deliveryMen?: DeliveryMan[];
+  onDeliveryManChange?: (sale: SaleRecord, name: string) => Promise<void>;
 }
 
-export function InvoicePrintModal({ sale, outlets, inventory, isOpen, onClose }: InvoicePrintModalProps) {
+export function InvoicePrintModal({ sale, outlets, inventory, isOpen, onClose, deliveryMen = [], onDeliveryManChange }: InvoicePrintModalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const printableStageRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState<number>(0.65);
@@ -793,6 +795,8 @@ export function InvoicePrintModal({ sale, outlets, inventory, isOpen, onClose }:
         sale={sale}
         outlets={outlets}
         inventory={inventory}
+        deliveryMen={deliveryMen}
+        onDeliveryManChange={onDeliveryManChange}
         exportFormat={digitalExportFormat}
         onExportComplete={() => {
           setDigitalExportFormat(null);

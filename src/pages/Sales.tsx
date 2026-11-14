@@ -9,6 +9,7 @@ import {
   fetchSales, 
   addSaleRecord, 
   fetchOutlets, 
+  fetchDeliveryMen,
   updateSale, 
   deleteSale, 
   canModifyData,
@@ -23,7 +24,7 @@ import {
   getUserAssignedRoutes,
   getSettings
 } from '@/src/api';
-import { InventoryItem, SaleRecord, Outlet, InvoiceItem, DeliveryStatus } from '@/src/types';
+import { InventoryItem, SaleRecord, Outlet, InvoiceItem, DeliveryStatus, DeliveryMan } from '@/src/types';
 import { ShoppingCart, Search, Receipt, Plus, Trash2, Edit2, FileText, ChevronDown, Printer, Truck, CheckCircle2, AlertTriangle, XCircle, AlertCircle, Store, Hash, ShieldAlert, Eye, User, FileSpreadsheet, Gift, Tag, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/src/lib/utils';
@@ -51,6 +52,7 @@ export function Sales() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [outlets, setOutlets] = useState<Outlet[]>([]);
+  const [deliveryMen, setDeliveryMen] = useState<DeliveryMan[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [addProductForIdx, setAddProductForIdx] = useState<number | null>(null);
@@ -81,7 +83,6 @@ export function Sales() {
   const [contactNumber, setContactNumber] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [deliveryManName, setDeliveryManName] = useState('');
-  const [deliveryManPhone, setDeliveryManPhone] = useState('');
   const [status, setStatus] = useState('');
   
   // Search shop by Sr No
@@ -98,13 +99,15 @@ export function Sales() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [invData, salesData, outletsData] = await Promise.all([
+      const [invData, salesData, outletsData, deliveryMenData] = await Promise.all([
         fetchInventory(),
         fetchSales(),
-        fetchOutlets()
+        fetchOutlets(),
+        fetchDeliveryMen()
       ]);
       setInventory(invData);
       setOutlets(outletsData);
+      setDeliveryMen(deliveryMenData);
       setSales(salesData.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime()));
     } catch (err) {
       console.error(err);
@@ -146,6 +149,7 @@ export function Sales() {
       setAddress(outlet.Address);
       setContactNumber(outlet.ContactNumber);
       setOwnerName(outlet.OwnerName);
+      setDeliveryManName(outlet.DeliveryManName || '');
       setStatus(outlet.Status);
       setSrSearchFeedback(null);
     } else {
@@ -155,6 +159,7 @@ export function Sales() {
       setAddress('');
       setContactNumber('');
       setOwnerName('');
+      setDeliveryManName('');
       setStatus('');
       setShopSrNoSearch('');
       setSrSearchFeedback(null);
@@ -337,10 +342,9 @@ export function Sales() {
 
   const handleEdit = (sale: SaleRecord) => {
     setEditingSaleId(sale.ID);
-    setDeliveryManName(sale.DriverName || '');
-    setDeliveryManPhone(sale.DriverContactNumber || '');
     const outlet = outlets.find(o => o.ID === sale.OutletID || o.Name === sale.OutletName || o.Address === sale.Address);
     selectOutlet(outlet || null);
+    setDeliveryManName(sale.DriverName || outlet?.DeliveryManName || '');
     if (!outlet) {
       setOutletName(sale.OutletName);
       setRoute(sale.Route);
@@ -396,7 +400,6 @@ export function Sales() {
       ContactNumber: contactNumber,
       OwnerName: ownerName,
       DriverName: deliveryManName.trim(),
-      DriverContactNumber: deliveryManPhone.trim(),
       Status: status,
       BookedBy: editingSaleId ? (sales.find(s => s.ID === editingSaleId)?.BookedBy || currentUser?.name || 'Order Booker') : (currentUser?.name || 'Order Booker'),
       DeliveryStatus: 'DELIVERED',
@@ -428,7 +431,6 @@ export function Sales() {
     }
     setEditingSaleId(null);
     setDeliveryManName('');
-    setDeliveryManPhone('');
     selectOutlet(null);
     setOrderItems([]);
     setDiscount(0);
@@ -496,6 +498,20 @@ export function Sales() {
 
   const triggerPrint = (sale: SaleRecord) => {
     setInvoiceToPrint(sale);
+  };
+
+  const handleInvoiceDeliveryManChange = async (sale: SaleRecord, name: string) => {
+    const updatedSale = { ...sale, DriverName: name.trim() };
+    try {
+      await updateSale(updatedSale);
+      setSales(previous => previous.map(item => item.ID === updatedSale.ID ? updatedSale : item));
+      setInvoiceToPrint(current => current?.ID === updatedSale.ID ? updatedSale : current);
+      setPrintedInvoiceToShow(current => current?.ID === updatedSale.ID ? updatedSale : current);
+    } catch (error) {
+      console.error('[Sales] Could not update invoice delivery man:', error);
+      alert(error instanceof Error ? error.message : 'Could not save the delivery man name.');
+      throw error;
+    }
   };
 
   return (
@@ -804,18 +820,24 @@ export function Sales() {
 
             <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
               <h3 className="text-xs font-bold uppercase text-gray-700">Order Booker &amp; Delivery Man</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-gray-600 uppercase">Order Booker</label>
                   <Input value={currentUser?.name || 'Order Booker'} readOnly />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-gray-600 uppercase">Delivery Man Name</label>
-                  <Input placeholder="Enter delivery man name" value={deliveryManName} onChange={e => setDeliveryManName(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-gray-600 uppercase">Delivery Man Contact Number</label>
-                  <Input type="tel" placeholder="Enter delivery man contact number" value={deliveryManPhone} onChange={e => setDeliveryManPhone(e.target.value)} />
+                  <select
+                    className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                    value={deliveryManName}
+                    onChange={e => setDeliveryManName(e.target.value)}
+                  >
+                    <option value="">Select Delivery Man</option>
+                    {deliveryManName && !deliveryMen.some(person => person.Name === deliveryManName) && (
+                      <option value={deliveryManName}>{deliveryManName}</option>
+                    )}
+                    {deliveryMen.map(person => <option key={person.ID} value={person.Name}>{person.Name}</option>)}
+                  </select>
                 </div>
               </div>
             </div>
@@ -1376,6 +1398,8 @@ export function Sales() {
         outlets={outlets}
         inventory={inventory}
         onClose={() => setInvoiceToPrint(null)}
+        deliveryMen={deliveryMen}
+        onDeliveryManChange={handleInvoiceDeliveryManChange}
       />
 
       <InvoicePrintModal
@@ -1384,6 +1408,8 @@ export function Sales() {
         outlets={outlets}
         inventory={inventory}
         onClose={() => setPrintedInvoiceToShow(null)}
+        deliveryMen={deliveryMen}
+        onDeliveryManChange={handleInvoiceDeliveryManChange}
       />
 
       <BookerLoadReportModal

@@ -173,7 +173,6 @@ export interface SaleRecord {
   LoadID?: string;
   VehicleNumber?: string;
   DriverName?: string;
-  DriverContactNumber?: string;
   Items: InvoiceItem[];
   TotalCases: number; // Booked cases
   LoadedCases?: number; // Actually loaded cases

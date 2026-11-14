@@ -9,6 +9,7 @@ import {
   saveOutlet, 
   deleteOutlet, 
   fetchOrderBookers, 
+  fetchDeliveryMen,
   canModifyData,
   getCurrentUser,
   isOrderBooker,
@@ -16,7 +17,7 @@ import {
   filterOutletsForUser,
   getUserAssignedRoutes
 } from '@/src/api';
-import { Outlet, InventoryItem, OrderBooker } from '@/src/types';
+import { Outlet, InventoryItem, OrderBooker, DeliveryMan } from '@/src/types';
 import { Store, Plus, Search, Edit, Trash2, Eye, ShieldAlert, User, MapPin, FileSpreadsheet } from 'lucide-react';
 import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
 import { ConfirmDialog } from '@/src/components/ui/confirm-dialog';
@@ -34,6 +35,7 @@ export function Outlets() {
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [orderBookers, setOrderBookers] = useState<OrderBooker[]>([]);
+  const [deliveryMen, setDeliveryMen] = useState<DeliveryMan[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [search, setSearch] = useState('');
@@ -49,14 +51,16 @@ export function Outlets() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [obsData, outletsData, invData] = await Promise.all([
+      const [obsData, outletsData, invData, deliveryMenData] = await Promise.all([
         fetchOrderBookers(),
         fetchOutlets(),
-        fetchInventory()
+        fetchInventory(),
+        fetchDeliveryMen()
       ]);
       setOutlets(outletsData);
       setInventory(invData);
       setOrderBookers(obsData);
+      setDeliveryMen(deliveryMenData);
     } catch (err) {
       console.error(err);
     }
@@ -98,6 +102,7 @@ export function Outlets() {
       Address: editingOutlet.Address || '',
       ContactNumber: editingOutlet.ContactNumber || '',
       OwnerName: editingOutlet.OwnerName || '',
+      DeliveryManName: editingOutlet.DeliveryManName || '',
       OB: editingOutlet.OB || (isBooker ? currentUser?.name : ''),
       OpeningBalance: Number(editingOutlet.OpeningBalance) || 0,
       Status: editingOutlet.Status || 'Active',
@@ -270,6 +275,21 @@ export function Outlets() {
                 {orderBookers.map(ob => (
                   <option key={ob.ID} value={ob.Name}>{ob.Name}</option>
                 ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-700 uppercase">Default Delivery Man</label>
+              <select
+                disabled={!canEdit}
+                className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:bg-gray-100 disabled:text-gray-500"
+                value={editingOutlet.DeliveryManName || ''}
+                onChange={e => setEditingOutlet({ ...editingOutlet, DeliveryManName: e.target.value })}
+              >
+                <option value="">Select Delivery Man</option>
+                {editingOutlet.DeliveryManName && !deliveryMen.some(person => person.Name === editingOutlet.DeliveryManName) && (
+                  <option value={editingOutlet.DeliveryManName}>{editingOutlet.DeliveryManName}</option>
+                )}
+                {deliveryMen.map(person => <option key={person.ID} value={person.Name}>{person.Name}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">

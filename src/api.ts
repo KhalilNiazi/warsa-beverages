@@ -1263,6 +1263,7 @@ export const purgeTemporaryMockDataFromStorage = (fullReset: boolean = false) =>
       localStorage.removeItem(MOCK_STOCK_IN_KEY);
       localStorage.removeItem(MOCK_MOVEMENTS_KEY);
       localStorage.removeItem(MOCK_OBS_KEY);
+      localStorage.removeItem(MOCK_DELIVERY_MEN_KEY);
       clearIDBStore(STORES.SALES).catch(() => {});
       clearIDBStore(STORES.INVENTORY).catch(() => {});
       clearIDBStore(STORES.OUTLETS).catch(() => {});
@@ -1274,6 +1275,7 @@ export const purgeTemporaryMockDataFromStorage = (fullReset: boolean = false) =>
       clearIDBStore(STORES.STOCK_INWARD).catch(() => {});
       clearIDBStore(STORES.STOCK_MOVEMENTS).catch(() => {});
       clearIDBStore(STORES.ORDER_BOOKERS).catch(() => {});
+      clearIDBStore(STORES.DELIVERY_MEN).catch(() => {});
       return;
     }
 
@@ -2347,7 +2349,9 @@ export const fetchDeliveryMen = async (forceRefresh: boolean = false): Promise<D
   await ensureDataFetchedFromGoogleSheet(forceRefresh);
   try {
     const data = JSON.parse(localStorage.getItem(MOCK_DELIVERY_MEN_KEY) || '[]');
-    return Array.isArray(data) ? data : [];
+    if (!Array.isArray(data)) return [];
+    await replaceStoreInIDB(STORES.DELIVERY_MEN, data).catch(() => {});
+    return data;
   } catch {
     return [];
   }
@@ -2365,13 +2369,16 @@ export const saveDeliveryMan = async (deliveryMan: DeliveryMan): Promise<void> =
   if (index >= 0) deliveryMen[index] = savedDeliveryMan;
   else deliveryMen.push(savedDeliveryMan);
   localStorage.setItem(MOCK_DELIVERY_MEN_KEY, JSON.stringify(deliveryMen));
+  await replaceStoreInIDB(STORES.DELIVERY_MEN, deliveryMen);
   triggerCloudSync('saveDeliveryMan', savedDeliveryMan);
 };
 
 export const deleteDeliveryMan = async (id: string): Promise<void> => {
   assertCanModifyData('delete delivery men');
   const deliveryMen = await fetchDeliveryMen();
-  localStorage.setItem(MOCK_DELIVERY_MEN_KEY, JSON.stringify(deliveryMen.filter(item => item.ID !== id)));
+  const updatedDeliveryMen = deliveryMen.filter(item => item.ID !== id);
+  localStorage.setItem(MOCK_DELIVERY_MEN_KEY, JSON.stringify(updatedDeliveryMen));
+  await replaceStoreInIDB(STORES.DELIVERY_MEN, updatedDeliveryMen);
   triggerCloudSync('deleteDeliveryMan', { ID: id });
 };
 
@@ -3046,6 +3053,7 @@ export const pullAllDataFromGoogleSheet = async (customUrl?: string): Promise<{
   }
   if (Array.isArray(data.deliveryMen)) {
     localStorage.setItem(MOCK_DELIVERY_MEN_KEY, JSON.stringify(data.deliveryMen));
+    await replaceStoreInIDB(STORES.DELIVERY_MEN, data.deliveryMen);
     counts['DeliveryMen'] = data.deliveryMen.length;
   }
 
@@ -3265,6 +3273,7 @@ export const pullAllDataFromFirestoreBackend = async () => {
     }
     if (result.data.deliveryMen) {
       localStorage.setItem(MOCK_DELIVERY_MEN_KEY, JSON.stringify(result.data.deliveryMen));
+      await replaceStoreInIDB(STORES.DELIVERY_MEN, result.data.deliveryMen);
     }
     // 11. Stock Inward
     if (result.data.stockInward && result.data.stockInward.length > 0) {

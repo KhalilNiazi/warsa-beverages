@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { InventoryItem, SaleRecord, Outlet } from '@/src/types';
+import { DeliveryMan, InventoryItem, SaleRecord, Outlet } from '@/src/types';
 import { format } from 'date-fns';
 import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
 import { Button } from '@/src/components/ui/button';
@@ -18,10 +18,40 @@ interface DigitalInvoiceModalProps {
   onClose: () => void;
   exportFormat?: 'png' | 'pdf' | null;
   onExportComplete?: () => void;
+  deliveryMen?: DeliveryMan[];
+  onDeliveryManChange?: (sale: SaleRecord, name: string) => Promise<void>;
 }
 
 const A4_W = 1123; // px at 96dpi (297mm)
 const A4_H = 794; // px at 96dpi (210mm)
+interface InvoiceTax {
+  id: string;
+  name: string;
+  rate: number;
+}
+
+const loadInvoiceTaxes = (): InvoiceTax[] => {
+  try {
+    const saved = localStorage.getItem('warsa_invoice_taxes_v1');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((tax): tax is InvoiceTax => tax && typeof tax.name === 'string' && Number.isFinite(Number(tax.rate)))
+          .map(tax => ({ id: String(tax.id || Date.now()), name: tax.name, rate: Math.max(0, Math.min(100, Number(tax.rate))) }));
+      }
+    }
+  } catch { /* use configured defaults */ }
+  try {
+    const rate = Number((getSettings() as any).invoiceTaxRate);
+    return [
+      { id: 'gst', name: 'GST', rate: Number.isFinite(rate) ? Math.max(0, Math.min(100, rate)) : 0 },
+      { id: 'advance-tax', name: 'Advance Tax', rate: 0 }
+    ];
+  } catch {
+    return [{ id: 'gst', name: 'GST', rate: 0 }, { id: 'advance-tax', name: 'Advance Tax', rate: 0 }];
+  }
+};
 
 const money = (v: unknown) => {
   const n = Number(v);
@@ -87,13 +117,21 @@ export function DigitalInvoiceModal({
   isOpen,
   onClose,
   exportFormat = null,
-  onExportComplete
+  onExportComplete,
+  deliveryMen = [],
+  onDeliveryManChange
 }: DigitalInvoiceModalProps) {
   const exportRef = useRef<HTMLDivElement>(null);
   const [copy, setCopy] = useState<'ORIGINAL' | 'CUSTOMER'>('ORIGINAL');
   const [scale, setScale] = useState(0.7);
   const [busy, setBusy] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
+  const [showTaxEditor, setShowTaxEditor] = useState(false);
+  const [showDeliveryEditor, setShowDeliveryEditor] = useState(false);
+  const [deliveryManName, setDeliveryManName] = useState(sale?.DriverName || '');
+  const [isSavingDeliveryMan, setIsSavingDeliveryMan] = useState(false);
+  const [deliverySaveError, setDeliverySaveError] = useState<string | null>(null);
+  const [taxes, setTaxes] = useState<InvoiceTax[]>(loadInvoiceTaxes);
   const [customLabel, setCustomLabel] = useState<string>(() => {
     try { return localStorage.getItem('warsa_inv_custom_label') || 'Remarks'; } catch { return 'Remarks'; }
   });
@@ -106,9 +144,18 @@ export function DigitalInvoiceModal({
       localStorage.setItem('warsa_inv_custom_text', customText);
     } catch { /* storage unavailable */ }
   }, [customLabel, customText]);
-  const [taxRate, setTaxRate] = useState<number>(() => {
-    try { const r = Number((getSettings() as any).invoiceTaxRate); return [0, 16, 18].includes(r) ? r : 0; } catch { return 0; }
-  });
+  useEffect(() => {
+    setDeliveryManName(sale?.DriverName || '');
+    setShowDeliveryEditor(false);
+  }, [sale?.ID, sale?.DriverName]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('warsa_invoice_taxes_v1', JSON.stringify(taxes));
+    } catch (error) {
+      console.error('Could not save invoice tax settings:', error);
+    }
+  }, [taxes]);
 
   useEffect(() => {
     const update = () => {
@@ -180,13 +227,18 @@ export function DigitalInvoiceModal({
     const offer = 0;
     return { it, gross, offer, net: gross - offer };
   });
-  const totalQty = rows.reduce((n, r) => n + (r.it.isPromo ? 0 : Number(r.it.qty || 0)), 0);
+  const totalQty = rows.reduce((n, r) => n + Number(r.it.qty || 0), 0);
   const totalTradeOffer = rows.reduce((n, r) => n + r.offer, 0);
   const subtotalNet = totalGross - totalTradeOffer;
   const additionalDiscount = Math.max(0, discount);
   const totalOffer = totalTradeOffer;
   const net = Math.max(0, subtotalNet - additionalDiscount);
-  const taxAmount = Math.round(net * taxRate) / 100;
+  const taxAmounts = taxes.map(tax => ({
+    ...tax,
+    amount: Math.round(net * tax.rate) / 100
+  }));
+  const taxAmount = taxAmounts.reduce((sum, tax) => sum + tax.amount, 0);
+  const totalTaxRate = taxes.reduce((sum, tax) => sum + tax.rate, 0);
   const grand = net + taxAmount;
   const opening = Number(outlet?.OpeningBalance) || 0;
   const closing = opening + grand;
@@ -208,7 +260,7 @@ export function DigitalInvoiceModal({
           <p>{companyAddress} &bull; Tel: {companyPhone} &bull; NTN: {companyNTN}</p>
         </div>
         <div className="dinv-rt">
-          <b>{taxRate > 0 ? 'TAX INVOICE' : 'INVOICE'}</b><br />
+          <b>{totalTaxRate > 0 ? 'TAX INVOICE' : 'INVOICE'}</b><br />
           {outlet?.CustomerType || 'Retail'}<br />
           No. of Items: {rows.length}<br />
           {copy === 'CUSTOMER' ? 'CUSTOMER COPY' : 'ORIGINAL COPY'}
@@ -227,7 +279,7 @@ export function DigitalInvoiceModal({
         <div>
           <div><b>Section:</b> {sale.Route || '-'}</div>
           <div><b>Order Booker:</b> {outlet?.OB || sale.OrderBooker || sale.BookedBy || '-'}</div>
-          <div><b>Delivery Man:</b> {sale.DriverName || '-'}</div>
+          <div><b>Delivery Man:</b> {deliveryManName || '-'}</div>
         </div>
         <div>
           <div><b>Invoice No:</b> {sale.ID}</div>
@@ -248,7 +300,7 @@ export function DigitalInvoiceModal({
           </tr>
         </thead>
         <tbody>
-          <tr className="ex"><td colSpan={6}>{taxRate > 0 ? `Taxable @ ${taxRate}%` : 'Exempted'}</td></tr>
+          <tr className="ex"><td colSpan={6}>{totalTaxRate > 0 ? `Taxable @ ${totalTaxRate}%` : 'Exempted'}</td></tr>
           {rows.map((r, i) => (
             <tr key={i}>
               <td>{skuFor(String(r.it.desc))} - {full(String(r.it.desc))}</td>
@@ -276,8 +328,9 @@ export function DigitalInvoiceModal({
       <table className="dinv-sum">
         <tbody>
           <tr><td>Less Additional Discount</td><td>{fmt(additionalDiscount)}</td></tr>
-          <tr><td>GST {taxRate.toFixed(2)} %</td><td>{fmt(taxAmount)}</td></tr>
-          <tr><td>Advance Tax 0.00 %</td><td>0.00</td></tr>
+          {taxAmounts.map(tax => (
+            <tr key={tax.id}><td>{tax.name} {tax.rate.toFixed(2)} %</td><td>{fmt(tax.amount)}</td></tr>
+          ))}
           <tr className="g"><td>Net Receivable</td><td>{fmt(grand)}</td></tr>
           <tr><td style={{ paddingTop: 14 }}>Opening Balance:</td><td style={{ paddingTop: 14 }}>{fmt(opening)} DR</td></tr>
           <tr><td>This Invoice Value:</td><td>{fmt(grand)}</td></tr>
@@ -366,11 +419,12 @@ export function DigitalInvoiceModal({
               <Button variant="outline" size="sm" onClick={() => setShowCustom(v => !v)} className="text-xs font-bold">
                 {showCustom ? 'Hide Custom Text' : 'Add Custom Text'}
               </Button>
-              <label className="text-xs font-bold text-slate-700">Tax
-                <select value={taxRate} onChange={e => setTaxRate(Number(e.target.value))} className="ml-1 border border-slate-300 rounded px-2 py-1 text-xs bg-white">
-                  <option value={0}>0%</option><option value={16}>16%</option><option value={18}>18%</option>
-                </select>
-              </label>
+              <Button variant="outline" size="sm" onClick={() => setShowDeliveryEditor(v => !v)} className="text-xs font-bold">
+                Edit Delivery Man
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowTaxEditor(v => !v)} className="text-xs font-bold">
+                Configure Taxes
+              </Button>
                 <Button variant="outline" size="sm" onClick={handleDownloadPng} disabled={busy} className="gap-1.5 text-xs font-bold">
                   <Download className="h-3.5 w-3.5" /> Save PNG
                 </Button>
@@ -382,6 +436,93 @@ export function DigitalInvoiceModal({
               </Button>
             </div>
           </div>
+
+          {showDeliveryEditor && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-end gap-2">
+              <div className="flex-1 min-w-56 space-y-1">
+                <label className="text-[11px] font-bold text-slate-700">Delivery Man Name</label>
+                <input
+                  list={`invoice-delivery-men-${sale.ID}`}
+                  value={deliveryManName}
+                  maxLength={100}
+                  onChange={e => setDeliveryManName(e.target.value)}
+                  className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs"
+                  placeholder="Select or enter a name"
+                />
+                <datalist id={`invoice-delivery-men-${sale.ID}`}>
+                  {deliveryMen.map(person => <option key={person.ID} value={person.Name} />)}
+                </datalist>
+              </div>
+              <Button
+                size="sm"
+                disabled={!onDeliveryManChange || isSavingDeliveryMan}
+                onClick={async () => {
+                  if (!onDeliveryManChange) return;
+                  setIsSavingDeliveryMan(true);
+                  setDeliverySaveError(null);
+                  try {
+                    await onDeliveryManChange(sale, deliveryManName);
+                    setShowDeliveryEditor(false);
+                  } catch (error) {
+                    setDeliverySaveError(error instanceof Error ? error.message : 'Could not save the delivery man name.');
+                  } finally {
+                    setIsSavingDeliveryMan(false);
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold"
+              >
+                {isSavingDeliveryMan ? 'Saving...' : 'Save Name'}
+              </Button>
+              {deliverySaveError && <p className="w-full text-xs text-red-600">{deliverySaveError}</p>}
+            </div>
+          )}
+
+          {showTaxEditor && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold text-slate-700">Invoice Taxes</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTaxes(previous => [...previous, { id: `${Date.now()}-${Math.random()}`, name: 'New Tax', rate: 0 }])}
+                  className="text-xs font-bold"
+                >
+                  Add Tax
+                </Button>
+              </div>
+              {taxes.map(tax => (
+                <div key={tax.id} className="grid grid-cols-1 sm:grid-cols-[1fr_140px_auto] gap-2 items-end">
+                  <label className="text-[11px] font-bold text-slate-700">
+                    Tax Name
+                    <input
+                      value={tax.name}
+                      maxLength={40}
+                      onChange={e => setTaxes(previous => previous.map(item => item.id === tax.id ? { ...item, name: e.target.value } : item))}
+                      className="mt-1 w-full border border-slate-300 rounded px-2 py-1.5 text-xs font-normal"
+                    />
+                  </label>
+                  <label className="text-[11px] font-bold text-slate-700">
+                    Rate (%)
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={tax.rate}
+                      onChange={e => {
+                        const rate = Number(e.target.value);
+                        setTaxes(previous => previous.map(item => item.id === tax.id ? { ...item, rate: Number.isFinite(rate) ? Math.max(0, Math.min(100, rate)) : 0 } : item));
+                      }}
+                      className="mt-1 w-full border border-slate-300 rounded px-2 py-1.5 text-xs font-normal"
+                    />
+                  </label>
+                  <Button variant="outline" size="sm" onClick={() => setTaxes(previous => previous.filter(item => item.id !== tax.id))} className="text-xs text-red-600">
+                    Remove
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
 
           {showCustom && (
             <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">

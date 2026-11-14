@@ -11,7 +11,7 @@ import { getFirebaseIdToken, getAppCheckToken } from '../lib/firebase';
 
 
 const DB_NAME = 'WarsaOfflineDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export const STORES = {
   INVENTORY: 'inventory',
@@ -26,6 +26,7 @@ export const STORES = {
   ROUTES: 'routes',
   USERS: 'appUsers',
   ORDER_BOOKERS: 'orderBookers',
+  DELIVERY_MEN: 'deliveryMen',
   SYNC_QUEUE: 'syncQueue'
 } as const;
 
@@ -77,6 +78,7 @@ export function openWarsaDB(): Promise<IDBDatabase> {
         { name: STORES.ROUTES, keyPath: 'ID' },
         { name: STORES.USERS, keyPath: 'id' },
         { name: STORES.ORDER_BOOKERS, keyPath: 'ID' },
+        { name: STORES.DELIVERY_MEN, keyPath: 'ID' },
         { name: STORES.SYNC_QUEUE, keyPath: 'id' }
       ];
 
