@@ -189,7 +189,11 @@ export function DigitalInvoiceModal({
     width: element.scrollWidth,
     height: Math.max(element.scrollHeight, element.offsetHeight),
     windowWidth: A4_W,
-    windowHeight: Math.max(A4_H, element.scrollHeight)
+    windowHeight: Math.max(A4_H, element.scrollHeight),
+    onclone: clonedDocument => {
+      const previewScale = clonedDocument.querySelector('.dinv-preview-scale') as HTMLElement | null;
+      if (previewScale) previewScale.style.transform = 'none';
+    }
   });
 
   const createInvoicePdf = (canvas: HTMLCanvasElement) => {
@@ -399,14 +403,16 @@ export function DigitalInvoiceModal({
     document.body.appendChild(printContainer);
     document.body.classList.add('dinv-printing');
 
+    let cleanupTimer = 0;
     const cleanup = () => {
       document.body.classList.remove('dinv-printing');
       printContainer.remove();
+      window.clearTimeout(cleanupTimer);
       window.removeEventListener('afterprint', cleanup);
     };
     window.addEventListener('afterprint', cleanup, { once: true });
+    cleanupTimer = window.setTimeout(cleanup, 60_000);
     window.print();
-    window.setTimeout(cleanup, 60_000);
   };
 
   const handleDownloadPdf = async () => {
@@ -632,7 +638,7 @@ export function DigitalInvoiceModal({
 
           <div className="overflow-auto bg-slate-200 rounded-xl p-3 flex justify-center">
             <div style={{ width: A4_W * scale, height: sheetHeight * scale }}>
-              <div ref={previewRef} style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: A4_W, boxShadow: '0 1px 6px rgba(0,0,0,.25)' }}>
+              <div ref={previewRef} className="dinv-preview-scale" style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: A4_W, boxShadow: '0 1px 6px rgba(0,0,0,.25)' }}>
                 <Sheet />
               </div>
             </div>
