@@ -52,7 +52,7 @@ import {
   ShieldAlert,
   Eye
 } from 'lucide-react';
-import { format, isSameDay, parseISO } from 'date-fns';
+import { format, isSameDay, isValid, parseISO } from 'date-fns';
 import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
 import { ConfirmDialog } from '@/src/components/ui/confirm-dialog';
 import { DeliveryStatusModal } from '@/src/components/DeliveryStatusModal';
@@ -87,6 +87,10 @@ export function Dispatch() {
 
   // Filters & State
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const parsedSelectedDate = parseISO(selectedDate);
+  const selectedDateLabel = isValid(parsedSelectedDate)
+    ? format(parsedSelectedDate, 'dd MMM yyyy')
+    : 'selected date';
   const [search, setSearch] = useState('');
   
   // Dialogs
@@ -468,7 +472,9 @@ export function Dispatch() {
             <Input 
               type="date" 
               value={selectedDate} 
-              onChange={(e) => setSelectedDate(e.target.value)} 
+              onChange={(e) => {
+                if (e.target.value && isValid(parseISO(e.target.value))) setSelectedDate(e.target.value);
+              }} 
               className="h-8 font-bold text-gray-900 bg-white mt-1 text-xs"
             />
           </CardContent>
@@ -479,7 +485,7 @@ export function Dispatch() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <Truck className="h-5 w-5 text-red-600" /> Vehicle Dispatch Loads for {format(parseISO(selectedDate), 'dd MMM yyyy')} ({dateLoads.length})
+            <Truck className="h-5 w-5 text-red-600" /> Vehicle Dispatch Loads for {selectedDateLabel} ({dateLoads.length})
           </h2>
           <span className="text-xs text-gray-500">
             Deducts from Floor Stock upon dispatch
@@ -651,7 +657,7 @@ export function Dispatch() {
           <div className="md:hidden divide-y divide-gray-100">
             {filteredSalesForDate.length === 0 ? (
               <div className="p-6 text-center text-gray-400 text-xs">
-                No booked orders found for {format(parseISO(selectedDate), 'dd MMM yyyy')}.
+                No booked orders found for {selectedDateLabel}.
               </div>
             ) : (
               filteredSalesForDate.map((sale) => {
@@ -756,7 +762,7 @@ export function Dispatch() {
                 {filteredSalesForDate.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="px-6 py-8 text-center text-gray-400 text-xs">
-                      No booked orders found for {format(parseISO(selectedDate), 'dd MMM yyyy')}.
+                      No booked orders found for {selectedDateLabel}.
                     </td>
                   </tr>
                 ) : (

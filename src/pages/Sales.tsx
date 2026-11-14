@@ -30,7 +30,7 @@ import {
 } from '@/src/api';
 import { InventoryItem, SaleRecord, Outlet, InvoiceItem, DeliveryStatus, DeliveryMan } from '@/src/types';
 import { ShoppingCart, Search, Receipt, Plus, Trash2, Edit2, FileText, ChevronDown, Printer, Truck, CheckCircle2, AlertTriangle, XCircle, AlertCircle, Store, Hash, ShieldAlert, Eye, User, FileSpreadsheet, Gift, Tag, Sparkles } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { cn } from '@/src/lib/utils';
 import { InvoiceDetailModal } from '@/src/components/InvoiceDetailModal';
 import { DeliveryStatusModal } from '@/src/components/DeliveryStatusModal';
@@ -43,6 +43,11 @@ import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
 import { ConfirmDialog } from '@/src/components/ui/confirm-dialog';
 import { GoogleSheetSyncStatus } from '@/src/components/GoogleSheetSyncStatus';
 import { getInvoicePromoProductOptions } from '@/src/utils/invoicePrintHelper';
+
+const formatInvoiceDate = (date: string | undefined, pattern: string) => {
+  const parsedDate = date ? new Date(date) : null;
+  return parsedDate && isValid(parsedDate) ? format(parsedDate, pattern) : 'Date unavailable';
+};
 
 export function Sales() {
   const currentUser = getCurrentUser();
@@ -1244,7 +1249,7 @@ export function Sales() {
                           return (
                             <tr key={sale.ID} onClick={() => setSelectedInvoice(sale)} className="hover:bg-gray-50/50 transition-colors cursor-pointer">
                               <td className="px-5 py-3.5 font-bold text-red-600">#{sale.ID}</td>
-                              <td className="px-5 py-3.5 text-xs text-gray-500">{format(new Date(sale.Date), 'dd MMM yyyy, h:mm a')}</td>
+                              <td className="px-5 py-3.5 text-xs text-gray-500">{formatInvoiceDate(sale.Date, 'dd MMM yyyy, h:mm a')}</td>
                               <td className="px-5 py-3.5 font-semibold text-gray-900">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   {outletSr && (
@@ -1379,7 +1384,7 @@ export function Sales() {
                                   </span>
                                 )}
                               </div>
-                              <p className="text-xs text-gray-500">Inv #{sale.ID} • {format(new Date(sale.Date), 'dd MMM, h:mm a')}</p>
+                              <p className="text-xs text-gray-500">Inv #{sale.ID} • {formatInvoiceDate(sale.Date, 'dd MMM, h:mm a')}</p>
                             </div>
                             <Badge className={cn(
                               "text-[10px]",
