@@ -10,7 +10,7 @@ import { Printer, Download } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 
-interface DigitalInvoiceModalProps {
+interface DigitalInvoiceModalProps {    
   sale: SaleRecord | null;
   outlets: Outlet[];
   isOpen: boolean;
