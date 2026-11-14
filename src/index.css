@@ -50,10 +50,26 @@
 
 /* Enhanced Print Styles */
 @media print {
+  @page warsa-invoice {
+    size: 11in 8.5in;
+    margin: 0;
+  }
+
   body {
     background: #ffffff !important;
     color: #000000 !important;
     font-size: 11pt !important;
+    overflow: visible !important;
+  }
+
+  html,
+  body {
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    overflow: visible !important;
   }
 
   header, 
@@ -96,7 +112,6 @@
     box-shadow: none !important;
   }
 
-  /* Force table borders to remain sharp when printed */
   table {
     border-collapse: collapse !important;
     width: 100% !important;
@@ -105,6 +120,134 @@
   table th, table td {
     border: 1px solid #333333 !important;
     padding: 4px 6px !important;
+  }
+
+  .print-report table,
+  #printable-cash-slip table,
+  #printable-gate-pass table,
+  #printable-stock-list table,
+  #printable-load-report table {
+    min-width: 0 !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  .print-report thead,
+  #printable-cash-slip thead,
+  #printable-gate-pass thead,
+  #printable-stock-list thead,
+  #printable-load-report thead {
+    display: table-header-group !important;
+  }
+
+  .print-report tfoot,
+  #printable-cash-slip tfoot,
+  #printable-gate-pass tfoot,
+  #printable-stock-list tfoot,
+  #printable-load-report tfoot {
+    display: table-footer-group !important;
+  }
+
+  .print-report tr,
+  #printable-cash-slip tr,
+  #printable-gate-pass tr,
+  #printable-stock-list tr,
+  #printable-load-report tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-report table th,
+  .print-report table td,
+  #printable-cash-slip table th,
+  #printable-cash-slip table td,
+  #printable-gate-pass table th,
+  #printable-gate-pass table td,
+  #printable-stock-list table th,
+  #printable-stock-list table td,
+  #printable-load-report table th,
+  #printable-load-report table td {
+    padding: 2px 4px !important;
+    line-height: 1.15 !important;
+    font-size: 8pt !important;
+  }
+
+  .print-report h1,
+  .print-report h2,
+  .print-report h3,
+  .print-report h4 {
+    break-after: avoid-page !important;
+    page-break-after: avoid !important;
+  }
+
+  .overflow-x-auto,
+  .overflow-y-auto,
+  .overflow-auto {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .print-report {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .print-report > * {
+    break-inside: auto;
+  }
+
+  .print-report table thead {
+    break-after: avoid-page !important;
+  }
+
+  body.warsa-print-cash-slip *,
+  body.warsa-print-gate-pass *,
+  body.warsa-print-stock-list *,
+  body.warsa-print-load-sheet * {
+    visibility: hidden !important;
+  }
+
+  body.warsa-print-cash-slip #printable-cash-slip,
+  body.warsa-print-cash-slip #printable-cash-slip *,
+  body.warsa-print-gate-pass #printable-gate-pass,
+  body.warsa-print-gate-pass #printable-gate-pass *,
+  body.warsa-print-stock-list #printable-stock-list,
+  body.warsa-print-stock-list #printable-stock-list *,
+  body.warsa-print-load-sheet #printable-load-report,
+  body.warsa-print-load-sheet #printable-load-report * {
+    visibility: visible !important;
+  }
+
+  body.warsa-print-cash-slip #printable-cash-slip,
+  body.warsa-print-gate-pass #printable-gate-pass,
+  body.warsa-print-stock-list #printable-stock-list,
+  body.warsa-print-load-sheet #printable-load-report {
+    position: fixed !important;
+    inset: 0 auto auto 0 !important;
+    z-index: 99999999 !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 4mm !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  #printable-cash-slip table,
+  #printable-gate-pass table,
+  #printable-stock-list table,
+  #printable-load-report table {
+    width: 100% !important;
+    table-layout: auto !important;
   }
 
   /* Crisp pass card print isolation */
@@ -119,13 +262,8 @@
     border-color: #000000 !important;
   }
 
-  /* Single-page invoice printing: side-by-side copies with a vertical cut line */
-  @page {
-    size: 11in 8.5in;
-    margin: 0;
-  }
-
-  html, body {
+  body.warsa-printing-invoice {
+    page: warsa-invoice;
     width: 11in !important;
     height: 8.5in !important;
     max-height: 8.5in !important;

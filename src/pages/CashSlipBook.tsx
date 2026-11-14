@@ -465,7 +465,15 @@ export function CashSlipBook() {
   };
 
   const handlePrintSlip = () => {
-    window.print();
+    const cleanup = () => document.body.classList.remove('warsa-print-cash-slip');
+    document.body.classList.add('warsa-print-cash-slip');
+    window.addEventListener('afterprint', cleanup, { once: true });
+    try {
+      window.print();
+    } catch (error) {
+      cleanup();
+      throw error;
+    }
   };
 
   // Filtered Cash Slips List
@@ -1591,7 +1599,7 @@ export function CashSlipBook() {
             </div>
 
             {/* Printable Voucher Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6" ref={printVoucherRef}>
+            <div id="printable-cash-slip" className="flex-1 overflow-y-auto p-6 space-y-6" ref={printVoucherRef}>
               
               {/* Slip Header */}
               <div className="text-center border-b-2 border-red-600 pb-4">

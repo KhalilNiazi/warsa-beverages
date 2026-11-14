@@ -663,7 +663,7 @@ export function DailyReport() {
             </div>
           </div>
         ) : (
-          <div ref={reportRef} className="w-full bg-white print:bg-white text-black font-sans text-xs p-4 border border-slate-200 print:border-0 rounded-xl">
+          <div ref={reportRef} className="print-report w-full bg-white print:bg-white text-black font-sans text-xs p-4 border border-slate-200 print:border-0 rounded-xl">
             <div className="text-center mb-4 font-bold text-lg uppercase tracking-widest border-b-2 border-black pb-2">
               KFM Beverages (WARSA) - DAILY SALES & STOCK REPORT ({format(parseISO(selectedDate), 'dd MMM yyyy')})
             </div>

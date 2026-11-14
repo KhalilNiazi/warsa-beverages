@@ -414,7 +414,7 @@ export function Reconciliation() {
         </div>
 
         {/* Printable & Screen Report Container */}
-        <div ref={reportRef} className="space-y-6 bg-white p-4 sm:p-6 rounded-xl border border-gray-200 print:border-0 print:p-0">
+        <div ref={reportRef} className="print-report space-y-6 bg-white p-4 sm:p-6 rounded-xl border border-gray-200 print:border-0 print:p-0">
           
           {/* Printable Header Banner */}
           <div className="border-b-2 border-black pb-3 text-center">

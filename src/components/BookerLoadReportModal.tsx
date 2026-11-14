@@ -336,11 +336,14 @@ export function BookerLoadReportModal({
                     print-color-adjust: exact; 
                     font-family: Arial, sans-serif; 
                   }
-                  table { border-collapse: collapse; width: 100%; }
-                  th, td { border: 1px solid #000; padding: 4px 6px; }
+                  table { border-collapse: collapse; width: 100%; page-break-inside: auto; break-inside: auto; }
+                  thead { display: table-header-group; }
+                  tr { page-break-inside: avoid; break-inside: avoid; }
+                  th, td { border: 1px solid #000; padding: 2px 4px; font-size: 8pt; line-height: 1.15; }
                   .bg-header { background-color: #f3f4f6 !important; }
                   .bg-promo { background-color: #ecfdf5 !important; }
                   .bg-total { background-color: #fee2e2 !important; }
+                  h1, h2, h3, h4 { page-break-after: avoid; break-after: avoid-page; }
                 </style>
               </head>
               <body onload="window.print(); window.close();">
@@ -357,7 +360,15 @@ export function BookerLoadReportModal({
         console.warn('Iframe popup print fallback', e);
       }
     }
-    window.print();
+    const cleanup = () => document.body.classList.remove('warsa-print-load-sheet');
+    document.body.classList.add('warsa-print-load-sheet');
+    window.addEventListener('afterprint', cleanup, { once: true });
+    try {
+      window.print();
+    } catch (error) {
+      cleanup();
+      throw error;
+    }
   };
 
   // Excel Export with individual SKU columns
@@ -641,7 +652,7 @@ export function BookerLoadReportModal({
 
         {/* Printable Load Sheet Preview Container */}
         <div className="border border-gray-300 rounded-xl bg-white p-4 sm:p-6 max-h-[72vh] overflow-y-auto shadow-sm">
-          <div ref={printSheetRef} className="space-y-6 text-black bg-white">
+          <div id="printable-load-report" ref={printSheetRef} className="space-y-6 text-black bg-white">
             
             {/* Header with Company Logo & Distribution Meta */}
             <div className="border-b-2 border-black pb-3 text-center relative">

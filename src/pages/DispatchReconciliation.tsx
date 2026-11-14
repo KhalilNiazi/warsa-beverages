@@ -299,7 +299,7 @@ export function DispatchReconciliation() {
         </div>
 
         {/* 8-POINT COMPLETE RECONCILIATION DOCUMENT (PRINT & EXPORT CONTAINER) */}
-        <div ref={reportRef} className="bg-white p-4 md:p-6 rounded-xl border border-slate-200 shadow-2xs font-sans text-slate-900 print:border-0 print:p-0 print:shadow-none space-y-6">
+        <div ref={reportRef} className="print-report bg-white p-4 md:p-6 rounded-xl border border-slate-200 shadow-2xs font-sans text-slate-900 print:border-0 print:p-0 print:shadow-none space-y-6">
           
           {/* Header of Audit Sheet */}
           <div className="border-b-2 border-red-600 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-2">

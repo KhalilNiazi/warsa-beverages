@@ -47,6 +47,26 @@ export function Inventory() {
   const [inwardRecords, setInwardRecords] = useState<StockInwardRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const handlePrintStock = () => {
+    const print = () => {
+      const cleanup = () => document.body.classList.remove('warsa-print-stock-list');
+      document.body.classList.add('warsa-print-stock-list');
+      window.addEventListener('afterprint', cleanup, { once: true });
+      try {
+        window.print();
+      } catch (error) {
+        cleanup();
+        throw error;
+      }
+    };
+
+    if (activeTab === 'floor') {
+      print();
+    } else {
+      setActiveTab('floor');
+      window.setTimeout(print, 100);
+    }
+  };
   const [movementFilter, setMovementFilter] = useState('ALL');
 
   // Product edit modal
@@ -205,7 +225,7 @@ export function Inventory() {
         <div className="flex flex-wrap items-center gap-2">
           <Button 
             variant="outline"
-            onClick={() => window.print()}
+            onClick={handlePrintStock}
             className="gap-2 border-gray-300 text-gray-700 font-semibold"
           >
             <Printer className="h-4 w-4 text-red-600" /> Print Stock Value
@@ -338,9 +358,10 @@ export function Inventory() {
 
       {/* TAB 1: FLOOR STOCK TABLE */}
       {activeTab === 'floor' && (
-        <Card className="bg-white border-gray-200">
+        <Card id="printable-stock-list" className="bg-white border-gray-200">
           <CardHeader className="p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="relative flex-1 max-w-sm">
+            <h2 className="hidden print:block text-lg font-bold text-black">Warehouse Daily Stock List</h2>
+            <div className="relative flex-1 max-w-sm print:hidden">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="Search SKU or Product Name..."
@@ -349,7 +370,7 @@ export function Inventory() {
                 className="pl-9 text-sm"
               />
             </div>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 print:hidden">
               Showing {filteredInventory.length} SKU definitions
             </span>
           </CardHeader>
@@ -364,7 +385,7 @@ export function Inventory() {
                   <th className="p-3.5 text-right">Live Floor Balance</th>
                   <th className="p-3.5 text-right">In-Transit</th>
                   <th className="p-3.5 text-center">Status</th>
-                  <th className="p-3.5 text-right">Actions</th>
+                  <th className="p-3.5 text-right print:hidden">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-medium">
@@ -386,7 +407,7 @@ export function Inventory() {
                       <td className="p-3.5 text-right text-gray-600">
                         {item.OpeningStock ?? item.Quantity}
                       </td>
-                      <td className="p-3.5 text-right">
+                      <td className="p-3.5 text-right print:hidden">
                         <span className={cn(
                           "text-base font-black px-2 py-0.5 rounded",
                           isLow ? "bg-red-100 text-red-800" : "bg-emerald-50 text-emerald-800"

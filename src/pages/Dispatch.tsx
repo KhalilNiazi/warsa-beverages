@@ -66,6 +66,17 @@ export function Dispatch() {
   const isSuper = isSuperAdmin(currentUser);
   const isBooker = isOrderBooker(currentUser);
   const assignedRoutes = getUserAssignedRoutes(currentUser);
+  const handlePrintGatePass = () => {
+    const cleanup = () => document.body.classList.remove('warsa-print-gate-pass');
+    document.body.classList.add('warsa-print-gate-pass');
+    window.addEventListener('afterprint', cleanup, { once: true });
+    try {
+      window.print();
+    } catch (error) {
+      cleanup();
+      throw error;
+    }
+  };
 
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [sales, setSales] = useState<SaleRecord[]>([]);
@@ -931,7 +942,7 @@ export function Dispatch() {
       >
         {gatePassLoad && (
           <div className="space-y-4">
-            <div className="p-4 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50 space-y-3 font-mono text-xs">
+            <div id="printable-gate-pass" className="p-4 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50 space-y-3 font-mono text-xs">
               <div className="text-center pb-2 border-b border-gray-200">
                 <h3 className="text-base font-black text-gray-900 tracking-wider">WARSA BEVERAGES (PVT) LTD</h3>
                 <p className="text-gray-500 text-[11px]">VEHICLE GATE DISPATCH PASS & LOAD VOUCHER</p>
@@ -986,7 +997,7 @@ export function Dispatch() {
                 Close
               </Button>
               <Button 
-                onClick={() => window.print()} 
+                onClick={handlePrintGatePass}
                 className="bg-red-600 hover:bg-red-700 text-white font-bold gap-2"
               >
                 <Printer className="h-4 w-4" /> Print Gate Pass
