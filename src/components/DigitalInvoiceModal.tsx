@@ -275,13 +275,6 @@ export function DigitalInvoiceModal({
   const opening = Number(outlet?.OpeningBalance) || 0;
   const closing = opening + grand;
   const fmt = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const skuFor = (d: string) => (
-    d.includes('1500') ? 'WAR-1.5L' :
-    d.includes('19') ? 'WAR-19L' :
-    /\b5\s*L\b|\b5000\s*ML\b/i.test(d) ? 'WAR-5L' :
-    d.includes('PROMO') ? 'PROMO-500ML' : 'WAR-500ML'
-  );
-  const full = (d: string) => (d.startsWith('PROMO') ? 'Promo 500ml (Free)' : 'Warsa Bottled Water ' + d.replace('ML', 'ml'));
   const customerNTN = (outlet as any)?.NTN || (outlet as any)?.CustomerNTN || '';
 
   const Sheet = () => (
@@ -335,7 +328,7 @@ export function DigitalInvoiceModal({
           <tr className="ex"><td colSpan={6}>{totalTaxRate > 0 ? `Taxable @ ${totalTaxRate}%` : 'Exempted'}</td></tr>
           {rows.map((r, i) => (
             <tr key={i}>
-              <td>{skuFor(String(r.it.desc))} - {full(String(r.it.desc))}</td>
+              <td>{r.it.isPromo ? `PROMO - ${r.it.desc} (Free)` : `${r.it.sku ? `${r.it.sku} - ` : ''}${r.it.desc}`}</td>
               <td className="c">{money(r.it.qty)}</td>
               <td className="r">{typeof r.it.price === 'number' ? money(r.it.price) : r.it.price}</td>
               <td className="r">{money(r.gross)}</td>

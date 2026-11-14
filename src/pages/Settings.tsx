@@ -6,6 +6,7 @@ import { GoogleSheetSyncStatus } from '@/src/components/GoogleSheetSyncStatus';
 import { 
   getSettings, 
   saveSettings, 
+  getInventory,
   getAppUsers, 
   saveAppUsers, 
   resetUserPin,
@@ -77,7 +78,8 @@ import {
   HardDrive,
   CloudUpload
 } from 'lucide-react';
-import { AppUserProfile, AppUserCredentialInput, UserRole, AppPageId, ModulePermission } from '../types';
+import { AppUserProfile, AppUserCredentialInput, UserRole, AppPageId, ModulePermission, InventoryItem } from '../types';
+import { getInvoicePromoProductOptions } from '@/src/utils/invoicePrintHelper';
 import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
 import { ConfirmDialog } from '@/src/components/ui/confirm-dialog';
 import { cn } from '@/src/lib/utils';
@@ -105,6 +107,8 @@ export function Settings({ currentUser }: SettingsProps) {
   const [companyAddress, setCompanyAddress] = useState('40-1 Saddar Bazar Lahore');
   const [companyPhone, setCompanyPhone] = useState('0336-4574227');
   const [invoiceButtonLabel, setInvoiceButtonLabel] = useState('Digital Invoice');
+  const [defaultPromoProductID, setDefaultPromoProductID] = useState('');
+  const [inventory, setInventory] = useState<InventoryItem[]>(() => getInventory());
   const [saved, setSaved] = useState(false);
   const [urlSaved, setUrlSaved] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -169,6 +173,7 @@ export function Settings({ currentUser }: SettingsProps) {
   const [offlineQueueCount, setOfflineQueueCount] = useState<number>(0);
   const [isSyncingOffline, setIsSyncingOffline] = useState<boolean>(false);
 
+  const promoProductOptions = getInvoicePromoProductOptions(inventory);
 
   const loadData = () => {
     const settings = getSettings();
@@ -177,6 +182,12 @@ export function Settings({ currentUser }: SettingsProps) {
     if (settings.companyAddress) setCompanyAddress(settings.companyAddress);
     if (settings.companyPhone) setCompanyPhone(settings.companyPhone);
     if (settings.invoiceButtonLabel) setInvoiceButtonLabel(settings.invoiceButtonLabel);
+    const inventoryItems = getInventory();
+    setInventory(inventoryItems);
+    const availablePromoProducts = getInvoicePromoProductOptions(inventoryItems);
+    setDefaultPromoProductID(availablePromoProducts.some(option => option.product.ID === settings.defaultPromoProductID)
+      ? settings.defaultPromoProductID
+      : availablePromoProducts.find(option => option.size === '500ml')?.product.ID || availablePromoProducts[0]?.product.ID || '');
     setUsers(getAppUsers());
     setSecurityMetrics(getSecurityMetrics());
     setSecurityLogs(getSecurityLogs());
@@ -236,7 +247,8 @@ export function Settings({ currentUser }: SettingsProps) {
       companyName,
       companyAddress,
       companyPhone,
-      invoiceButtonLabel: invoiceButtonLabel.trim() || 'Digital Invoice'
+      invoiceButtonLabel: invoiceButtonLabel.trim() || 'Digital Invoice',
+      defaultPromoProductID
     }));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -1619,6 +1631,25 @@ export function Settings({ currentUser }: SettingsProps) {
               placeholder="Digital Invoice"
             />
             <p className="text-xs text-slate-500">Examples: Digital Invoice, Soft Copy, View Invoice, E-Invoice</p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Default Free Promo Product</label>
+            <select
+              value={defaultPromoProductID}
+              onChange={event => setDefaultPromoProductID(event.target.value)}
+              disabled={promoProductOptions.length === 0}
+              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100"
+            >
+              {promoProductOptions.map(option => (
+                <option key={option.product.ID} value={option.product.ID}>
+                  {option.label} - {option.product.Name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500">
+              New orders use this free product by default; change it for an individual order in the promo section.
+              {promoProductOptions.length === 0 ? ' Add 500 ml, 1.5 L, 5 L, or 19 L products to Inventory to configure a promo.' : ''}
+            </p>
           </div>
           <div className="flex justify-end pt-2">
             <Button onClick={handleSaveCompany} className="bg-red-600 hover:bg-red-700 text-white font-bold gap-2 shadow-xs">

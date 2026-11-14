@@ -171,7 +171,7 @@ export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps
                 Promotional Scheme
               </span>
               <span className="font-black text-emerald-700 text-xs">
-                {invoice.PromoDescription || `${invoice.PromoFreeCases || 1} Free 500ml PET Promotional Scheme`}
+                {invoice.PromoDescription || `${invoice.PromoFreeCases || 1} Free ${invoice.PromoProductName || '500ml PET'} Promotional Scheme`}
               </span>
             </div>
           )}

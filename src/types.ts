@@ -415,6 +415,7 @@ export interface Settings {
   companyAddress?: string;
   companyPhone?: string;
   invoiceButtonLabel?: string;
+  defaultPromoProductID?: string;
 }
 
 export type GoogleSheetSyncState = 'IDLE' | 'SAVING' | 'SAVED' | 'QUEUED' | 'OFFLINE' | 'ERROR';

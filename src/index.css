@@ -119,7 +119,7 @@
     border-color: #000000 !important;
   }
 
-  /* Single-page invoice printing: Original (left) + Customer copy (right), US Letter landscape */
+  /* Single-page invoice printing: side-by-side copies with a vertical cut line */
   @page {
     size: 11in 8.5in;
     margin: 0;
@@ -150,8 +150,7 @@
     break-after: avoid !important;
   }
 
-  /* Stage = 1156px + 56px divider + 1156px = 2368px wide, 1360px tall.
-     Scale 0.4437 -> 1050px wide, fills the 1056px (11in) page edge to edge. */
+  /* Two 1156px copies and a narrow 56px divider fill the landscape page. */
   .warsa-print-container,
   body.warsa-printing-invoice #printable-invoice-page .warsa-print-container {
     position: absolute !important;
@@ -168,6 +167,35 @@
     break-inside: avoid !important;
     color-adjust: exact !important;
     -webkit-print-color-adjust: exact !important;
+  }
+
+  .warsa-print-container > .warsa-invoice {
+    flex: 0 0 1156px !important;
+  }
+
+  .warsa-print-container > .perforation-divider {
+    position: relative !important;
+    display: flex !important;
+    flex: 0 0 56px !important;
+    width: 56px !important;
+    min-width: 56px !important;
+    height: 1360px !important;
+    margin: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 0 !important;
+    border-left: 2px dashed #dd0000 !important;
+    border-right: 2px dashed #dd0000 !important;
+    background: #ffffff !important;
+  }
+
+  .warsa-print-container .perforation-badge {
+    position: relative !important;
+    z-index: 1 !important;
+    flex: none !important;
+    padding: 4px 10px !important;
+    white-space: nowrap !important;
+    transform: rotate(-90deg) !important;
   }
 
   body.warsa-printing-invoice * {

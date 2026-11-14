@@ -487,7 +487,7 @@ export function InvoicePrintModal({ sale, outlets, inventory, isOpen, onClose, d
           const rowClass = `tr t${idx + 1} ${it.isAlt ? 'alt' : ''}`;
           return (
             <div key={idx} className={rowClass}>
-              <div>{it.isPromo ? <em>{it.desc}</em> : it.desc}</div>
+              <div>{it.isPromo ? <em>PROMO - {it.desc}</em> : it.desc}</div>
               <div>{it.qty}</div>
               <div>{it.price}</div>
               <div>{it.amount}</div>

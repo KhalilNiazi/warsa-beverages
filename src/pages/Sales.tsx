@@ -42,6 +42,7 @@ import { BulkDataModal } from '@/src/components/BulkDataModal';
 import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
 import { ConfirmDialog } from '@/src/components/ui/confirm-dialog';
 import { GoogleSheetSyncStatus } from '@/src/components/GoogleSheetSyncStatus';
+import { getInvoicePromoProductOptions } from '@/src/utils/invoicePrintHelper';
 
 export function Sales() {
   const currentUser = getCurrentUser();
@@ -98,6 +99,9 @@ export function Sales() {
   const [discount, setDiscount] = useState<number>(0);
   const [isPromoEnabled, setIsPromoEnabled] = useState<boolean>(false);
   const [promoCasesCount, setPromoCasesCount] = useState<number>(1);
+  const [promoProductID, setPromoProductID] = useState<string>(() => {
+    try { return getSettings().defaultPromoProductID || ''; } catch { return ''; }
+  });
   const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
   const [saleToDelete, setSaleToDelete] = useState<string | null>(null);
 
@@ -322,24 +326,21 @@ export function Sales() {
   const totalAmount = regularItems.reduce((acc, item) => acc + item.Amount, 0);
   const grandTotal = Math.max(0, totalAmount - (Number(discount) || 0));
 
-  // Find 500ml product from inventory
-  const product500ml = inventory.find(i => 
-    i.Name?.toLowerCase().includes('500') || 
-    i.Size?.toLowerCase().includes('500') || 
-    i.SKU?.toLowerCase().includes('500')
-  ) || { ID: 'promo-500ml', Name: 'WARSA 500ml' };
-
-  // Manual Promotional Scheme: User explicitly adds promo ("it depend on us what we give them")
-  // Default scheme: "1 Free 500ml PET Promotional Scheme"
+  const promoProductOptions = getInvoicePromoProductOptions(inventory);
+  const promoProduct = inventory.find(item => item.ID === promoProductID) ||
+    promoProductOptions.find(option => option.size === '500ml')?.product ||
+    promoProductOptions[0]?.product ||
+    { ID: 'promo-500ml', Name: 'WARSA 500ml' };
+  const promoProductLabel = promoProductOptions.find(option => option.product.ID === promoProduct.ID)?.label || promoProduct.Name;
   const isPromoApplied = isPromoEnabled && promoCasesCount > 0;
   const freePromoCases = isPromoApplied ? promoCasesCount : 0;
   const promoSchemeTitle = freePromoCases === 1 
-    ? '1 Free 500ml PET Promotional Scheme' 
-    : `${freePromoCases} Free 500ml PET Promotional Scheme`;
+    ? `1 Free ${promoProductLabel} Promotional Scheme` 
+    : `${freePromoCases} Free ${promoProductLabel} Promotional Scheme`;
 
   const promoItem: InvoiceItem | null = isPromoApplied ? {
-    ProductID: product500ml.ID || 'promo-500ml',
-    ProductName: `${product500ml.Name || 'WARSA 500ml'} [PROMO FREE]`,
+    ProductID: promoProduct.ID,
+    ProductName: `${promoProduct.Name} [PROMO FREE]`,
     Quantity: freePromoCases,
     BookedQty: freePromoCases,
     DeliveredQty: freePromoCases,
@@ -372,9 +373,11 @@ export function Sales() {
     if (sale.HasPromo) {
       setIsPromoEnabled(true);
       setPromoCasesCount(sale.PromoFreeCases || 1);
+      setPromoProductID(sale.PromoProductID || sale.Items?.find(item => item.IsPromo)?.ProductID || getSettings().defaultPromoProductID || '');
     } else {
       setIsPromoEnabled(false);
       setPromoCasesCount(1);
+      setPromoProductID(getSettings().defaultPromoProductID || '');
     }
     
     const newOrderItems = (sale.Items || [])
@@ -399,6 +402,10 @@ export function Sales() {
     e.preventDefault();
     if (regularItems.length === 0) {
       alert("Please add at least one valid product.");
+      return;
+    }
+    if (isPromoEnabled && !inventory.some(item => item.ID === promoProduct.ID)) {
+      alert('Select an available promo product from Inventory before saving this order.');
       return;
     }
 
@@ -432,7 +439,7 @@ export function Sales() {
       PromoDescription: isPromoApplied && freePromoCases > 0 ? promoSchemeTitle : undefined,
       PromoFreeCases: isPromoApplied ? freePromoCases : 0,
       PromoProductID: isPromoApplied && promoItem ? promoItem.ProductID : undefined,
-      PromoProductName: isPromoApplied ? (product500ml.Name || 'WARSA 500ml') : undefined,
+      PromoProductName: isPromoApplied ? promoProduct.Name : undefined,
       LoadedCases: totalLoadedCases
     };
 
@@ -450,6 +457,7 @@ export function Sales() {
     setDiscount(0);
     setIsPromoEnabled(false);
     setPromoCasesCount(1);
+    setPromoProductID(getSettings().defaultPromoProductID || '');
     loadData();
   };
 
@@ -929,11 +937,11 @@ export function Sales() {
                     <div className="text-xs font-bold text-gray-900 uppercase flex items-center gap-2">
                       <span>Promotional Scheme</span>
                       <span className="bg-red-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full shadow-xs">
-                        1 Free 500ml PET
+                        1 Free {promoProductLabel}
                       </span>
                     </div>
                     <p className="text-[11px] text-gray-600 mt-0.5">
-                      Grant free promotional 500ml PET cases to this outlet (Rate: PKR 0.00).
+                      Grant free cases of a selected product to this outlet (Rate: PKR 0.00).
                     </p>
                   </div>
                 </div>
@@ -967,13 +975,30 @@ export function Sales() {
                           {promoSchemeTitle}
                         </span>
                         <span className="text-[11px] text-gray-500">
-                          Item: <strong>{product500ml.Name || 'WARSA 500ml'}</strong> &bull; Free of Cost (Rate: PKR 0.00)
+                          Item: <strong>{promoProduct.Name}</strong> &bull; Free of Cost (Rate: PKR 0.00)
                         </span>
                       </div>
                     </div>
 
-                    {/* Quantity Stepper */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-end gap-3">
+                      <label className="text-xs font-bold text-gray-700 space-y-1">
+                        Free Product:
+                        <select
+                          value={promoProductOptions.some(option => option.product.ID === promoProduct.ID) ? promoProduct.ID : ''}
+                          onChange={event => setPromoProductID(event.target.value)}
+                          disabled={promoProductOptions.length === 0}
+                          className="block h-8 max-w-56 rounded-md border border-red-300 bg-white px-2 text-xs font-medium"
+                        >
+                          {promoProductOptions.map(option => (
+                            <option key={option.product.ID} value={option.product.ID}>
+                              {option.label} - {option.product.Name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      {/* Quantity Stepper */}
+                      <div className="flex items-center gap-2">
                       <label className="text-xs font-bold text-gray-700 whitespace-nowrap">
                         Free Cases:
                       </label>
@@ -1002,6 +1027,7 @@ export function Sales() {
                         </button>
                       </div>
                       <span className="text-[11px] font-bold text-red-700">cs</span>
+                      </div>
                     </div>
                   </div>
 
@@ -1012,7 +1038,7 @@ export function Sales() {
                 </div>
               ) : (
                 <div className="p-2.5 bg-white/70 rounded-lg border border-red-100 text-xs text-gray-500 flex items-center justify-between">
-                  <span>No promo scheme attached. Click <strong>"+ ADD PROMO"</strong> to grant free promotional cases to this customer.</span>
+                  <span>No promo scheme attached. Click <strong>"+ ADD PROMO"</strong> to grant free cases of a selected product.</span>
                   <Button
                     type="button"
                     variant="ghost"
@@ -1209,7 +1235,7 @@ export function Sales() {
                                   <span>{sale.OutletName}</span>
                                   {sale.HasPromo && (
                                     <span className="inline-flex items-center text-[9px] font-bold bg-red-100 text-red-800 px-1.5 py-0.5 rounded">
-                                      +{sale.PromoFreeCases || 1} Free 500ml
+                                      +{sale.PromoFreeCases || 1} Free {sale.PromoProductName || '500ml'}
                                     </span>
                                   )}
                                 </div>
@@ -1329,7 +1355,7 @@ export function Sales() {
                                 <p className="font-bold text-gray-900">{sale.OutletName}</p>
                                 {sale.HasPromo && (
                                   <span className="inline-flex items-center text-[9px] font-bold bg-red-100 text-red-800 px-1.5 py-0.5 rounded">
-                                    +{sale.PromoFreeCases || 1} Free 500ml
+                                    +{sale.PromoFreeCases || 1} Free {sale.PromoProductName || '500ml'}
                                   </span>
                                 )}
                               </div>

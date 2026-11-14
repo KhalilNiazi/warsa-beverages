@@ -149,7 +149,7 @@ export const PrintOrderView = ({ sale, outlets, inventory = [] }: {
           const rowClass = `tr t${idx + 1} ${it.isAlt ? 'alt' : ''}`;
           return (
             <div key={idx} className={rowClass}>
-              <div>{it.isPromo ? <em>{it.desc}</em> : it.desc}</div>
+              <div>{it.isPromo ? <em>PROMO - {it.desc}</em> : it.desc}</div>
               <div>{it.qty}</div>
               <div>{it.price}</div>
               <div>{it.amount}</div>
@@ -362,19 +362,19 @@ export const PrintOrderView = ({ sale, outlets, inventory = [] }: {
       </style>
 
       <div className="warsa-print-container flex flex-col items-center">
-        {/* Top: Original Copy */}
+        {/* Original copy on the left */}
         <SingleInvoiceSheet isCustomerCopy={false} />
 
-        {/* Center Perforation Cut-Line */}
+        {/* Vertical perforation between the copies */}
         <div className="perforation-divider">
           <div className="perforation-badge">
             <Scissors className="w-4 h-4" />
-            <span>✂ TEAR ALONG PERFORATION &bull; CUT LINE &bull; CUSTOMER COPY (BOTTOM)</span>
+            <span>✂ CUT HERE &bull; CUSTOMER COPY (RIGHT)</span>
             <Scissors className="w-4 h-4 rotate-180" />
           </div>
         </div>
 
-        {/* Bottom: Customer Copy */}
+        {/* Customer copy on the right */}
         <SingleInvoiceSheet isCustomerCopy={true} />
       </div>
     </div>
