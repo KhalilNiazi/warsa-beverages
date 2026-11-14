@@ -538,7 +538,7 @@ function authorizeUserRole(user, action, payload) {
     getStockInward: ['ASM', 'WAREHOUSE_MANAGER', 'MANAGEMENT'],
     getStockMovements: ['ASM', 'SALESMAN', 'WAREHOUSE_MANAGER', 'MANAGEMENT'],
     getRoutes: ['ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'MANAGEMENT'],
-    getOrderBookers: ['ASM', 'MANAGEMENT'],
+    getOrderBookers: ['ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'WAREHOUSE_MANAGER', 'ACCOUNTS', 'MANAGEMENT'],
     getDeliveryMen: ['ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'MANAGEMENT']
   };
   if (readRoles[action] && readRoles[action].indexOf(user.role) === -1) {
@@ -925,7 +925,7 @@ function getAllData(authUser) {
     stockInward: ['ASM', 'WAREHOUSE_MANAGER', 'MANAGEMENT'],
     stockMovements: ['ASM', 'SALESMAN', 'WAREHOUSE_MANAGER', 'MANAGEMENT'],
     routes: ['ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'MANAGEMENT'],
-    orderBookers: ['ASM', 'MANAGEMENT'],
+    orderBookers: ['ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'WAREHOUSE_MANAGER', 'ACCOUNTS', 'MANAGEMENT'],
     deliveryMen: ['ASM', 'ORDER_BOOKER', 'SALESMAN', 'DRIVER', 'MANAGEMENT']
   };
   var sheets = {

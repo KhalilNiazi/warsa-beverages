@@ -2348,7 +2348,19 @@ export const getOrderBookers = (): OrderBooker[] => {
   if (data) {
     try {
       const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((booker): booker is OrderBooker & { AssignedRoute?: string } =>
+            booker && typeof booker.ID === 'string' && typeof booker.Name === 'string'
+          )
+          .map(booker => ({
+            ...booker,
+            AssignedRoutes: booker.AssignedRoutes ||
+              (typeof booker.AssignedRoute === 'string' && booker.AssignedRoute.trim()
+                ? [booker.AssignedRoute.trim()]
+                : [])
+          }));
+      }
     } catch (error) {
       console.error('[Order Bookers] Could not read cached order bookers:', error);
     }
