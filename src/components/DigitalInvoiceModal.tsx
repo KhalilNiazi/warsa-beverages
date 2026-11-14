@@ -6,7 +6,7 @@ import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
 import { Button } from '@/src/components/ui/button';
 import { buildStandardInvoicePrintItems } from '@/src/utils/invoicePrintHelper';
 import { getSettings } from '@/src/api';
-import { Printer, Download } from 'lucide-react';
+import { Printer, Download, MessageCircle } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 
@@ -80,7 +80,7 @@ function numberToWords(num: number): string {
 }
 
 const SHEET_CSS = `
-.dinv-sheet{width:${A4_W}px;height:${A4_H}px;background:#fff;color:#000;box-sizing:border-box;padding:45px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.45;display:flex;flex-direction:column}
+.dinv-sheet{width:${A4_W}px;min-height:${A4_H}px;height:auto;background:#fff;color:#000;box-sizing:border-box;padding:36px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.4;display:flex;flex-direction:column}
 .dinv-sheet *{box-sizing:border-box;color:#000;background:transparent}
 .dinv-hd{display:flex;justify-content:space-between;align-items:flex-start}
 .dinv-co{font-size:22px;font-weight:700}.dinv-hd p{margin:2px 0;font-size:11px}
@@ -97,7 +97,7 @@ const SHEET_CSS = `
 .dinv-sum td{padding:3px 6px}.dinv-sum td:last-child{text-align:right;width:120px}
 .dinv-sum .g td{font-weight:700;border-top:1px solid #000;padding-top:8px}
 .dinv-words{margin-top:10px;font-size:11px}
-.dinv-sign{display:flex;justify-content:space-between;margin-top:auto;padding-top:70px}
+.dinv-sign{display:flex;justify-content:space-between;margin-top:24px;padding-top:8px;flex-shrink:0}
 .dinv-sign div{width:160px;border-top:1px solid #000;text-align:center;padding-top:4px;font-weight:700}
 .dinv-note{margin-top:12px;border:1px solid #000;padding:8px;font-size:11px;white-space:pre-wrap}
 .dinv-foot{text-align:center;margin-top:14px;font-size:10px}
@@ -106,7 +106,7 @@ const SHEET_CSS = `
   @page{size:A4 landscape;margin:0}
   body.dinv-printing > *:not(.dinv-print-only){display:none !important}
   body.dinv-printing .dinv-print-only{position:static !important;left:auto !important;display:block !important}
-  .dinv-sheet{width:297mm !important;height:210mm !important;page-break-after:avoid}
+  .dinv-sheet{width:297mm !important;min-height:210mm !important;height:auto !important;page-break-after:avoid}
 }
 `;
 
@@ -122,8 +122,10 @@ export function DigitalInvoiceModal({
   onDeliveryManChange
 }: DigitalInvoiceModalProps) {
   const exportRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
   const [copy, setCopy] = useState<'ORIGINAL' | 'CUSTOMER'>('ORIGINAL');
   const [scale, setScale] = useState(0.7);
+  const [sheetHeight, setSheetHeight] = useState(A4_H);
   const [busy, setBusy] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [showTaxEditor, setShowTaxEditor] = useState(false);
@@ -168,6 +170,42 @@ export function DigitalInvoiceModal({
   }, []);
 
   useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview) return;
+    const updateHeight = () => {
+      const sheet = preview.querySelector('.dinv-sheet');
+      if (sheet) setSheetHeight(Math.max(A4_H, sheet.scrollHeight));
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(preview);
+    return () => observer.disconnect();
+  }, [sale, taxes, customText, customLabel, deliveryManName]);
+
+  const renderInvoiceCanvas = async (element: HTMLElement) => html2canvas(element, {
+    scale: 2,
+    backgroundColor: '#ffffff',
+    useCORS: true,
+    logging: false,
+    width: element.scrollWidth,
+    height: Math.max(element.scrollHeight, element.offsetHeight),
+    windowWidth: A4_W,
+    windowHeight: Math.max(A4_H, element.scrollHeight)
+  });
+
+  const createInvoicePdf = (canvas: HTMLCanvasElement) => {
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const margin = 4;
+    const maxWidth = 297 - margin * 2;
+    const maxHeight = 210 - margin * 2;
+    const ratio = Math.min(maxWidth / canvas.width, maxHeight / canvas.height);
+    const width = canvas.width * ratio;
+    const height = canvas.height * ratio;
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', (297 - width) / 2, (210 - height) / 2, width, height);
+    return pdf;
+  };
+
+  useEffect(() => {
     if (!isOpen || !sale || !exportFormat) return;
     const timer = window.setTimeout(async () => {
       const el = exportRef.current?.querySelector('.dinv-sheet') as HTMLElement | null;
@@ -178,16 +216,14 @@ export function DigitalInvoiceModal({
       }
 
       try {
-        const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
+        const canvas = await renderInvoiceCanvas(el);
         if (exportFormat === 'png') {
           const anchor = document.createElement('a');
           anchor.href = canvas.toDataURL('image/png');
           anchor.download = `Invoice_${sale.ID}_Digital.png`;
           anchor.click();
         } else {
-          const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-          pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 297, 210);
-          pdf.save(`Invoice_${sale.ID}_Digital.pdf`);
+          createInvoicePdf(canvas).save(`Invoice_${sale.ID}_Digital.pdf`);
         }
       } catch (err) {
         console.error(`Digital invoice ${exportFormat.toUpperCase()} export failed:`, err);
@@ -361,13 +397,41 @@ export function DigitalInvoiceModal({
     if (!el) return;
     setBusy(true);
     try {
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 297, 210);
-      pdf.save(`Invoice_${sale.ID}_${copy === 'CUSTOMER' ? 'Customer' : 'Original'}.pdf`);
+      const canvas = await renderInvoiceCanvas(el);
+      createInvoicePdf(canvas).save(`Invoice_${sale.ID}_${copy === 'CUSTOMER' ? 'Customer' : 'Original'}.pdf`);
     } catch (err) {
       console.error('PDF export failed:', err);
       alert('Could not download invoice PDF.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleShareOnWhatsApp = async () => {
+    const el = exportRef.current?.querySelector('.dinv-sheet') as HTMLElement | null;
+    if (!el) return;
+    setBusy(true);
+    try {
+      const canvas = await renderInvoiceCanvas(el);
+      const pdf = createInvoicePdf(canvas);
+      const blob = pdf.output('blob');
+      const file = new File([blob], `Invoice_${sale.ID}.pdf`, { type: 'application/pdf' });
+      const shareData = {
+        files: [file],
+        title: `Invoice ${sale.ID}`,
+        text: `Invoice ${sale.ID} for ${sale.OutletName}`
+      };
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share(shareData);
+      } else {
+        pdf.save(`Invoice_${sale.ID}.pdf`);
+        const message = `Invoice ${sale.ID} for ${sale.OutletName} is downloaded as a PDF. Please attach it to this WhatsApp message.`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      console.error('WhatsApp invoice sharing failed:', error);
+      alert('Could not share the invoice. Please download the PDF and attach it in WhatsApp.');
     } finally {
       setBusy(false);
     }
@@ -378,7 +442,7 @@ export function DigitalInvoiceModal({
     if (!el) return;
     setBusy(true);
     try {
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
+      const canvas = await renderInvoiceCanvas(el);
       const anchor = document.createElement('a');
       anchor.href = canvas.toDataURL('image/png');
       anchor.download = `Invoice_${sale.ID}_${copy === 'CUSTOMER' ? 'Customer' : 'Original'}.png`;
@@ -431,6 +495,9 @@ export function DigitalInvoiceModal({
                 <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={busy} className="gap-1.5 text-xs font-bold">
                   <Download className="h-3.5 w-3.5" /> {busy ? 'Preparing...' : 'Download PDF'}
               </Button>
+                <Button variant="outline" size="sm" onClick={handleShareOnWhatsApp} disabled={busy} className="gap-1.5 text-xs font-bold text-green-700 border-green-300 hover:bg-green-50">
+                  <MessageCircle className="h-3.5 w-3.5" /> WhatsApp PDF
+                </Button>
               <Button size="sm" onClick={handlePrint} className="gap-1.5 text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white">
                 <Printer className="h-3.5 w-3.5" /> Print A4
               </Button>
@@ -547,8 +614,8 @@ export function DigitalInvoiceModal({
           )}
 
           <div className="overflow-auto bg-slate-200 rounded-xl p-3 flex justify-center">
-            <div style={{ width: A4_W * scale, height: A4_H * scale }}>
-              <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: A4_W, height: A4_H, boxShadow: '0 1px 6px rgba(0,0,0,.25)' }}>
+            <div style={{ width: A4_W * scale, height: sheetHeight * scale }}>
+              <div ref={previewRef} style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: A4_W, boxShadow: '0 1px 6px rgba(0,0,0,.25)' }}>
                 <Sheet />
               </div>
             </div>
