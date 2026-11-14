@@ -395,7 +395,7 @@ export function Dispatch() {
                 onClick={() => {
                   if (inventory.length > 0) setInwardProductId(inventory[0].ID);
                   setIsInwardDialogOpen(true);
-                }} 
+                }}
                 className="gap-1.5 text-gray-700 bg-white font-semibold text-xs sm:text-sm h-10"
               >
                 <Plus className="h-4 w-4 text-emerald-600 shrink-0" />
