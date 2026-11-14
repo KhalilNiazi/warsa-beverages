@@ -2181,11 +2181,37 @@ export const deleteDispatchLoad = async (id: string): Promise<void> => {
 
 // --- OUTLET MANAGEMENT ---
 export const getOutlets = (): Outlet[] => {
-  return getMockOutlets();
+  const orderBookers = getOrderBookers();
+  return getMockOutlets().map(outlet => linkOutletOrderBooker(outlet, orderBookers));
+};
+
+const getOrderBookerRoutes = (booker: OrderBooker): string[] => Array.isArray(booker.AssignedRoutes)
+  ? booker.AssignedRoutes
+  : typeof booker.AssignedRoutes === 'string'
+    ? booker.AssignedRoutes.split(',').map(route => route.trim()).filter(Boolean)
+    : [];
+
+const linkOutletOrderBooker = (outlet: Outlet, orderBookers: OrderBooker[]): Outlet => {
+  const linkedById = outlet.OrderBookerID
+    ? orderBookers.find(booker => booker.ID === outlet.OrderBookerID)
+    : undefined;
+  const linkedByName = orderBookers.find(booker =>
+    booker.Name.trim().toLowerCase() === (outlet.OB || '').trim().toLowerCase()
+  );
+  const linkedByRoute = orderBookers.filter(booker =>
+    getOrderBookerRoutes(booker).some(route =>
+      route.trim().toLowerCase() === (outlet.Route || '').trim().toLowerCase()
+    )
+  );
+  const linkedBooker = linkedById || linkedByName || (linkedByRoute.length === 1 ? linkedByRoute[0] : undefined);
+  return linkedBooker
+    ? { ...outlet, OrderBookerID: linkedBooker.ID, OB: linkedBooker.Name }
+    : outlet;
 };
 
 export const fetchOutlets = async (forceRefresh: boolean = false): Promise<Outlet[]> => {
   await ensureDataFetchedFromGoogleSheet(forceRefresh);
+  const orderBookers = getOrderBookers();
   const list = getMockOutlets();
   return list.map((o, idx) => {
     let sr = o.SrNo;
@@ -2199,7 +2225,10 @@ export const fetchOutlets = async (forceRefresh: boolean = false): Promise<Outle
       }
       if (!sr) sr = idx + 1;
     }
-    return { ...o, SrNo: sr };
+    return {
+      ...linkOutletOrderBooker(o, orderBookers),
+      SrNo: sr
+    };
   });
 };
 
@@ -2334,15 +2363,42 @@ export const saveOrderBooker = async (ob: OrderBooker): Promise<void> => {
   assertCanModifyData('save or edit order bookers');
   const obs = await fetchOrderBookers();
   const existingIndex = obs.findIndex(o => o.ID === ob.ID);
+  const previousName = existingIndex >= 0 ? obs[existingIndex].Name.trim() : '';
   let savedOb = ob;
   if (existingIndex >= 0) {
-    obs[existingIndex] = ob;
+    savedOb = { ...ob, Name: sanitizeInput(ob.Name.trim()) };
+    obs[existingIndex] = savedOb;
   } else {
-    savedOb = { ...ob, ID: ob.ID || Date.now().toString() };
+    savedOb = { ...ob, ID: ob.ID || Date.now().toString(), Name: sanitizeInput(ob.Name.trim()) };
     obs.push(savedOb);
   }
   localStorage.setItem(MOCK_OBS_KEY, JSON.stringify(obs));
   triggerCloudSync('saveOrderBooker', savedOb);
+
+  const outlets = getMockOutlets();
+  let updated = false;
+  const linkedRoutes = getOrderBookerRoutes(savedOb).map(route => route.trim().toLowerCase());
+  const renamedOutlets = outlets.map(outlet => {
+    const routeMatches = linkedRoutes.includes((outlet.Route || '').trim().toLowerCase());
+    const routeIsUnique = routeMatches && !obs.some(booker =>
+      booker.ID !== savedOb.ID &&
+      getOrderBookerRoutes(booker).some(route =>
+        route.trim().toLowerCase() === (outlet.Route || '').trim().toLowerCase()
+      )
+    );
+    const matchesLegacyName = !outlet.OrderBookerID && previousName &&
+      (outlet.OB || '').trim().toLowerCase() === previousName.toLowerCase();
+    const isLinkedToBooker = outlet.OrderBookerID === savedOb.ID || matchesLegacyName || (!outlet.OrderBookerID && routeIsUnique);
+    if (!isLinkedToBooker || (outlet.OrderBookerID === savedOb.ID && outlet.OB === savedOb.Name)) return outlet;
+    updated = true;
+    const updatedOutlet = { ...outlet, OrderBookerID: savedOb.ID, OB: savedOb.Name };
+    triggerCloudSync('saveOutlet', updatedOutlet);
+    return updatedOutlet;
+  });
+  if (updated) {
+    localStorage.setItem(MOCK_OUTLETS_KEY, JSON.stringify(renamedOutlets));
+    await replaceStoreInIDB(STORES.OUTLETS, renamedOutlets);
+  }
 };
 
 export const deleteOrderBooker = async (id: string): Promise<void> => {

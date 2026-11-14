@@ -254,6 +254,7 @@ export interface Outlet {
   ContactNumber: string;
   OwnerName: string;
   OB: string;
+  OrderBookerID?: string;
   DeliveryManName?: string;
   CustomerType?: 'Retailer' | 'Wholesaler' | 'Corporate' | 'Distributor';
   Status: 'Active' | 'Inactive' | 'Temporarily Closed';

@@ -77,10 +77,17 @@ export function Outlets() {
   }, []);
 
   const handleOpenAdd = () => {
+    const defaultBooker = orderBookers.find(booker => booker.Name === currentUser?.name) ||
+      orderBookers.find(booker =>
+        assignedRoutes.length > 0 &&
+        booker.AssignedRoutes?.some(route => assignedRoutes.includes(route))
+      ) ||
+      orderBookers[0];
     setEditingOutlet({
       CustomRates: {},
       Route: isBooker && assignedRoutes.length > 0 ? assignedRoutes[0] : (outlets[0]?.Route || 'Route 1 - Gulberg & Cantt'),
-      OB: isBooker ? currentUser?.name : (orderBookers[0]?.Name || '')
+      OB: isBooker ? (defaultBooker?.Name || currentUser?.name) : (defaultBooker?.Name || ''),
+      OrderBookerID: defaultBooker?.ID
     });
     setIsEditing(true);
   };
@@ -92,6 +99,8 @@ export function Outlets() {
       setSaveError('Shop code and shop name are required.');
       return;
     }
+    const selectedBooker = orderBookers.find(booker => booker.ID === editingOutlet.OrderBookerID) ||
+      orderBookers.find(booker => booker.Name.trim().toLowerCase() === (editingOutlet.OB || '').trim().toLowerCase());
     
     const outletToSave = {
       ...editingOutlet,
@@ -103,7 +112,8 @@ export function Outlets() {
       ContactNumber: editingOutlet.ContactNumber || '',
       OwnerName: editingOutlet.OwnerName || '',
       DeliveryManName: editingOutlet.DeliveryManName || '',
-      OB: editingOutlet.OB || (isBooker ? currentUser?.name : ''),
+      OB: selectedBooker?.Name || editingOutlet.OB || (isBooker ? currentUser?.name : ''),
+      OrderBookerID: selectedBooker?.ID || editingOutlet.OrderBookerID,
       OpeningBalance: Number(editingOutlet.OpeningBalance) || 0,
       Status: editingOutlet.Status || 'Active',
       CustomRates: editingOutlet.CustomRates || {}
@@ -268,12 +278,21 @@ export function Outlets() {
               <select 
                 disabled={!canEdit}
                 className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:bg-gray-100 disabled:text-gray-500"
-                value={editingOutlet.OB || ''} 
-                onChange={e => setEditingOutlet({...editingOutlet, OB: e.target.value})}
+                value={editingOutlet.OrderBookerID || orderBookers.find(booker =>
+                  booker.Name.trim().toLowerCase() === (editingOutlet.OB || '').trim().toLowerCase()
+                )?.ID || ''}
+                onChange={e => {
+                  const selectedBooker = orderBookers.find(booker => booker.ID === e.target.value);
+                  setEditingOutlet({
+                    ...editingOutlet,
+                    OrderBookerID: selectedBooker?.ID,
+                    OB: selectedBooker?.Name || ''
+                  });
+                }}
               >
                 <option value="">Select Order Booker</option>
                 {orderBookers.map(ob => (
-                  <option key={ob.ID} value={ob.Name}>{ob.Name}</option>
+                  <option key={ob.ID} value={ob.ID}>{ob.Name}</option>
                 ))}
               </select>
             </div>

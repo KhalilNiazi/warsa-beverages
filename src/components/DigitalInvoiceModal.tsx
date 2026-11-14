@@ -368,9 +368,9 @@ export function DigitalInvoiceModal({
             <tr key={tax.id}><td>{tax.name} {tax.rate.toFixed(2)} %</td><td>{fmt(tax.amount)}</td></tr>
           ))}
           <tr className="g"><td>Net Receivable</td><td>{fmt(grand)}</td></tr>
-          <tr><td style={{ paddingTop: 14 }}>Opening Balance:</td><td style={{ paddingTop: 14 }}>{fmt(opening)} DR</td></tr>
+          <tr><td style={{ paddingTop: 14 }}>Opening Balance:</td><td style={{ paddingTop: 14 }}>{fmt(opening)} Rs</td></tr>
           <tr><td>This Invoice Value:</td><td>{fmt(grand)}</td></tr>
-          <tr className="g"><td>Closing Balance:</td><td>{fmt(closing)} DR</td></tr>
+          <tr className="g"><td>Closing Balance:</td><td>{fmt(closing)} Rs</td></tr>
         </tbody>
       </table>
       <div className="dinv-words"><b>Amount in words:</b> Rupees {numberToWords(grand)} Only</div>

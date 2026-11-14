@@ -87,7 +87,7 @@ SCHEMAS[SHEETS.SALES] = [
 
 SCHEMAS[SHEETS.OUTLETS] = [
   'ID', 'SrNo', 'Code', 'Name', 'Route', 'Area', 'Address', 'ContactNumber', 
-  'OwnerName', 'OB', 'DeliveryManName', 'CustomerType', 'Status', 'CustomRates', 'OpeningBalance',
+  'OwnerName', 'OB', 'OrderBookerID', 'DeliveryManName', 'CustomerType', 'Status', 'CustomRates', 'OpeningBalance',
   'CreditLimit', 'CreatedAt', 'UpdatedAt', 'CreatedBy', 'UpdatedBy'
 ];
 

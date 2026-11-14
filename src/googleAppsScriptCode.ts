@@ -89,7 +89,7 @@ export const APPS_SCRIPT_SOURCE = [
   "",
   "SCHEMAS[SHEETS.OUTLETS] = [",
   "  \u0027ID\u0027, \u0027SrNo\u0027, \u0027Code\u0027, \u0027Name\u0027, \u0027Route\u0027, \u0027Area\u0027, \u0027Address\u0027, \u0027ContactNumber\u0027, ",
-  "  \u0027OwnerName\u0027, \u0027OB\u0027, \u0027DeliveryManName\u0027, \u0027CustomerType\u0027, \u0027Status\u0027, \u0027CustomRates\u0027, \u0027OpeningBalance\u0027,",
+  "  \u0027OwnerName\u0027, \u0027OB\u0027, \u0027OrderBookerID\u0027, \u0027DeliveryManName\u0027, \u0027CustomerType\u0027, \u0027Status\u0027, \u0027CustomRates\u0027, \u0027OpeningBalance\u0027,",
   "  \u0027CreditLimit\u0027, \u0027CreatedAt\u0027, \u0027UpdatedAt\u0027, \u0027CreatedBy\u0027, \u0027UpdatedBy\u0027",
   "];",
   "",
