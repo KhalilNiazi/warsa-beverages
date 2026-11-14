@@ -94,6 +94,7 @@ export function Settings({ currentUser }: SettingsProps) {
   const [companyName, setCompanyName] = useState('KFM Beverages (WARSA)');
   const [companyAddress, setCompanyAddress] = useState('40-1 Saddar Bazar Lahore');
   const [companyPhone, setCompanyPhone] = useState('0336-4574227');
+  const [invoiceButtonLabel, setInvoiceButtonLabel] = useState('Digital Invoice');
   const [saved, setSaved] = useState(false);
   const [urlSaved, setUrlSaved] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -165,6 +166,7 @@ export function Settings({ currentUser }: SettingsProps) {
     if (settings.companyName) setCompanyName(settings.companyName);
     if (settings.companyAddress) setCompanyAddress(settings.companyAddress);
     if (settings.companyPhone) setCompanyPhone(settings.companyPhone);
+    if (settings.invoiceButtonLabel) setInvoiceButtonLabel(settings.invoiceButtonLabel);
     setUsers(getAppUsers());
     setSecurityMetrics(getSecurityMetrics());
     setSecurityLogs(getSecurityLogs());
@@ -223,7 +225,8 @@ export function Settings({ currentUser }: SettingsProps) {
       appsScriptUrl: url.trim(),
       companyName,
       companyAddress,
-      companyPhone
+      companyPhone,
+      invoiceButtonLabel: invoiceButtonLabel.trim() || 'Digital Invoice'
     }));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -1533,6 +1536,16 @@ export function Settings({ currentUser }: SettingsProps) {
                 placeholder="0336-4574227"
               />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Invoice Button Name (Orders page)</label>
+            <Input
+              value={invoiceButtonLabel}
+              onChange={(e) => setInvoiceButtonLabel(e.target.value)}
+              maxLength={20}
+              placeholder="Digital Invoice"
+            />
+            <p className="text-xs text-slate-500">Examples: Digital Invoice, Soft Copy, View Invoice, E-Invoice</p>
           </div>
           <div className="flex justify-end pt-2">
             <Button onClick={handleSaveCompany} className="bg-red-600 hover:bg-red-700 text-white font-bold gap-2 shadow-xs">

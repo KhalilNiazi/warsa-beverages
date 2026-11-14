@@ -20,7 +20,8 @@ import {
   canManageDeliveriesAndLoading,
   filterOutletsForUser,
   filterSalesForUser,
-  getUserAssignedRoutes
+  getUserAssignedRoutes,
+  getSettings
 } from '@/src/api';
 import { InventoryItem, SaleRecord, Outlet, InvoiceItem, DeliveryStatus } from '@/src/types';
 import { ShoppingCart, Search, Receipt, Plus, Trash2, Edit2, FileText, ChevronDown, Printer, Truck, CheckCircle2, AlertTriangle, XCircle, AlertCircle, Store, Hash, ShieldAlert, Eye, User, FileSpreadsheet, Gift, Tag, Sparkles } from 'lucide-react';
@@ -29,7 +30,7 @@ import { cn } from '@/src/lib/utils';
 import { InvoiceDetailModal } from '@/src/components/InvoiceDetailModal';
 import { DeliveryStatusModal } from '@/src/components/DeliveryStatusModal';
 import { PrintOrderView } from '@/src/components/PrintOrderView';
-import { InvoicePrintModal } from '@/src/components/InvoicePrintModal';
+import { DigitalInvoiceModal } from '@/src/components/DigitalInvoiceModal';
 import { BookerLoadReportModal } from '@/src/components/BookerLoadReportModal';
 import { BulkDataModal } from '@/src/components/BulkDataModal';
 import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
@@ -59,6 +60,10 @@ export function Sales() {
   
   const [printSale, setPrintSale] = useState<SaleRecord | null>(null);
   const [invoiceToPrint, setInvoiceToPrint] = useState<SaleRecord | null>(null);
+  const [invoiceLabel] = useState<string>(() => {
+    try { return getSettings().invoiceButtonLabel || 'Digital Invoice'; }
+    catch { return 'Digital Invoice'; }
+  });
   const [isLoadReportOpen, setIsLoadReportOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [salesmanBookerFilter, setSalesmanBookerFilter] = useState('ALL');
@@ -1198,8 +1203,8 @@ export function Sales() {
                                       <Eye className="h-3.5 w-3.5 mr-1" /> View Intake
                                     </Button>
                                   )}
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => triggerPrint(sale)} title="Print Invoice">
-                                    <Printer className="h-4 w-4 text-red-600" />
+                                  <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={() => triggerPrint(sale)} title={invoiceLabel}>
+                                    <Printer className="h-4 w-4 text-red-600 mr-1" /> {invoiceLabel}
                                   </Button>
                                   {canEdit && (isSuper || isBooker) && (
                                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(sale)} title="Edit Order">
@@ -1284,8 +1289,8 @@ export function Sales() {
                                   <Eye className="h-3 w-3 mr-1" /> View Intake
                                 </Button>
                               )}
-                              <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => triggerPrint(sale)} title="Print Invoice">
-                                <Printer className="h-3.5 w-3.5 text-red-600" />
+                              <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={() => triggerPrint(sale)} title={invoiceLabel}>
+                                <Printer className="h-3.5 w-3.5 text-red-600 mr-1" /> {invoiceLabel}
                               </Button>
                               {canEdit && (isSuper || isBooker) && (
                                 <Button variant="ghost" size="sm" className="h-7 px-2 text-gray-600" onClick={() => handleEdit(sale)} title="Edit Order">
@@ -1331,7 +1336,7 @@ export function Sales() {
         onCancel={() => setSaleToDelete(null)}
       />
 
-      <InvoicePrintModal
+      <DigitalInvoiceModal
         isOpen={!!invoiceToPrint}
         sale={invoiceToPrint}
         outlets={outlets}

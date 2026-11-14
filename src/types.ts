@@ -402,6 +402,7 @@ export interface Settings {
   companyName?: string;
   companyAddress?: string;
   companyPhone?: string;
+  invoiceButtonLabel?: string;
 }
 
 export type GoogleSheetSyncState = 'IDLE' | 'SAVING' | 'SAVED' | 'QUEUED' | 'OFFLINE' | 'ERROR';
