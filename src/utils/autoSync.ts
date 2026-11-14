@@ -23,6 +23,8 @@ export function startAutoSync(options: {
   let pushing = false;
   let pulling = false;
   let lastPull = Date.now();
+  let pullFailureCount = 0;
+  let nextPullAttemptAt = 0;
 
   const ready = () =>
     typeof navigator !== 'undefined' &&
@@ -53,16 +55,27 @@ export function startAutoSync(options: {
 
   const pullNow = async () => {
     if (!options.canPull || pulling || pushing || !ready()) return;
+    if (Date.now() < nextPullAttemptAt) return;
     // Never overwrite local data while uploads are waiting, or while a form/dialog is open.
     if ((await pendingTotal()) > 0) return;
     if (document.querySelector('.responsive-dialog-portal')) return;
     pulling = true;
     try {
       const result = await options.pull();
-      if (typeof result === 'object' && result !== null && 'success' in result && result.success === false) return;
+      if (typeof result === 'object' && result !== null && 'success' in result && result.success === false) {
+        pullFailureCount += 1;
+        nextPullAttemptAt = Date.now() + Math.min(120_000, 30_000 * (2 ** (pullFailureCount - 1)));
+        lastPull = Date.now();
+        return;
+      }
+      pullFailureCount = 0;
+      nextPullAttemptAt = 0;
       lastPull = Date.now();
     } catch (e) {
       console.warn('[AutoSync] pull notice:', e);
+      pullFailureCount += 1;
+      nextPullAttemptAt = Date.now() + Math.min(120_000, 30_000 * (2 ** (pullFailureCount - 1)));
+      lastPull = Date.now();
     } finally {
       pulling = false;
     }
@@ -75,6 +88,7 @@ export function startAutoSync(options: {
 
   const onOnline = () => {
     lastPull = 0;
+    nextPullAttemptAt = 0;
     void tick();
   };
   const onVisible = () => { if (document.visibilityState === 'visible') void tick(); };

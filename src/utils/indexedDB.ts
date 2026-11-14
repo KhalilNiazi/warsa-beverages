@@ -44,6 +44,13 @@ export interface SyncQueueItem {
   lastError?: string;
 }
 
+function getMutationEntityKey(action: string, id: string): string {
+  const entity = action
+    .replace(/^(save|delete)/, '')
+    .replace(/(Record|Item|Load)$/, '');
+  return `${entity}:${id}`;
+}
+
 let dbInstance: IDBDatabase | null = null;
 let dbOpenPromise: Promise<IDBDatabase> | null = null;
 
@@ -244,6 +251,7 @@ export async function queueOfflineMutation(action: string, payload: any, mutatio
   const targetId = payload && typeof payload === 'object'
     ? String(payload.ID || payload.id || payload.Id || payload.Code || payload.code || payload.slipNumber || '').trim()
     : String(payload || '').trim();
+  const targetKey = getMutationEntityKey(action, targetId);
 
   // Deduplicate: purge stale or conflicting queue items for the same entity
   try {
@@ -253,7 +261,7 @@ export async function queueOfflineMutation(action: string, payload: any, mutatio
         ? String(it.payload.ID || it.payload.id || it.payload.Id || it.payload.Code || it.payload.code || it.payload.slipNumber || '').trim()
         : String(it.payload || '').trim();
 
-      if (itId && targetId && itId === targetId) {
+      if (itId && targetId && getMutationEntityKey(it.action, itId) === targetKey) {
         if (action.startsWith('delete')) {
           // If we are deleting this entity, purge any previous pending saves or previous duplicate deletes
           await deleteFromIDB(STORES.SYNC_QUEUE, it.id);

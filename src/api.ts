@@ -63,7 +63,6 @@ import {
   deleteFromIDB,
   getAllFromIDB,
   queueOfflineMutation,
-  purgeSyncQueueForEntity,
   syncPendingMutations,
   getSyncQueueCount,
   STORES
@@ -172,7 +171,7 @@ export const getAppUsers = (): AppUserProfile[] => {
       const parsed = JSON.parse(data);
       if (Array.isArray(parsed)) {
         // Purge any legacy default mock users (e.g. 1122, 3344, 5566, 7788)
-        const cleanUsers = parsed.filter(u =>
+        const cleanUsers = normalizePulledIds<AppUserProfile>(parsed, 'id').filter(u =>
           u.id !== 'user_super_admin' &&
           u.id !== 'user_asm' &&
           u.id !== 'user_order_booker' &&
@@ -837,6 +836,9 @@ let syncTimer: any = null;
 let isCloudSyncBusy = false;
 const inFlightEntityDeletes = new Set<string>();
 
+const getSyncEntityKey = (action: string, targetId: string): string =>
+  `${action.replace(/^(save|delete)/, '').replace(/(Record|Item|Load)$/, '')}:${targetId}`;
+
 // Live runtime status state
 let runtimeSyncStatus: GoogleSheetSyncRuntimeStatus = {
   state: 'IDLE',
@@ -897,10 +899,16 @@ function enqueueCloudSync(action: string, payload: any) {
 
   // Deduplicate in-memory queue
   if (action.startsWith('delete')) {
+    const entityKey = getSyncEntityKey(action, targetId);
     // Drop any pending saves for this entity
-    syncQueue = syncQueue.filter(item => !(item.targetId && item.targetId === targetId));
+    syncQueue = syncQueue.filter(item =>
+      !(item.targetId && getSyncEntityKey(item.action, item.targetId) === entityKey)
+    );
     // Check if duplicate delete is already queued or already in flight
-    if (syncQueue.some(item => item.action === action && item.targetId === targetId) || inFlightEntityDeletes.has(targetId)) {
+    if (syncQueue.some(item =>
+      item.action.startsWith('delete') &&
+      getSyncEntityKey(item.action, item.targetId) === entityKey
+    ) || inFlightEntityDeletes.has(entityKey)) {
       return;
     }
   } else {
@@ -979,7 +987,7 @@ async function processCloudSyncQueue() {
   // Track in-flight deletes
   for (const t of tasksToProcess) {
     if (t.action.startsWith('delete') && t.targetId) {
-      inFlightEntityDeletes.add(t.targetId);
+      inFlightEntityDeletes.add(getSyncEntityKey(t.action, t.targetId));
     }
   }
 
@@ -1008,10 +1016,7 @@ async function processCloudSyncQueue() {
             recentLogs: updatedLogs
           });
         } else {
-          // If execution failed on a save, queue into IDB for later retry
-          if (!task.action.startsWith('delete')) {
-            await queueOfflineMutation(task.action, task.payload, task.mutationId);
-          }
+          await queueOfflineMutation(task.action, task.payload, task.mutationId);
           const updatedLogs = (runtimeSyncStatus.recentLogs || []).map(l => {
             if (l.action === task.action && (!task.targetId || l.targetId === task.targetId)) {
               return { ...l, status: 'FAILED' as const, error: res?.error || 'Sheet save rejected' };
@@ -1025,9 +1030,7 @@ async function processCloudSyncQueue() {
           });
         }
       } catch (err: any) {
-        if (!task.action.startsWith('delete')) {
-          await queueOfflineMutation(task.action, task.payload, task.mutationId);
-        }
+        await queueOfflineMutation(task.action, task.payload, task.mutationId);
         const updatedLogs = (runtimeSyncStatus.recentLogs || []).map(l => {
           if (l.action === task.action && (!task.targetId || l.targetId === task.targetId)) {
             return { ...l, status: 'FAILED' as const, error: err?.message || 'Sync failed' };
@@ -1066,11 +1069,8 @@ async function processCloudSyncQueue() {
             recentLogs: updatedLogs
           });
         } else {
-          // Fallback saves to offline queue
           for (const t of tasksToProcess) {
-            if (!t.action.startsWith('delete')) {
-              await queueOfflineMutation(t.action, t.payload, t.mutationId);
-            }
+            await queueOfflineMutation(t.action, t.payload, t.mutationId);
           }
           const batchErr = res?.error || 'Batch sync failed';
           const failedLogs = (runtimeSyncStatus.recentLogs || []).map(l =>
@@ -1086,9 +1086,7 @@ async function processCloudSyncQueue() {
         }
       } catch (err: any) {
         for (const t of tasksToProcess) {
-          if (!t.action.startsWith('delete')) {
-            await queueOfflineMutation(t.action, t.payload, t.mutationId);
-          }
+          await queueOfflineMutation(t.action, t.payload, t.mutationId);
         }
         const netErr = err?.message || 'Network unreachable';
         updateRuntimeSyncStatus({
@@ -1106,7 +1104,7 @@ async function processCloudSyncQueue() {
     // Clear in-flight deletes
     for (const t of tasksToProcess) {
       if (t.action.startsWith('delete') && t.targetId) {
-        inFlightEntityDeletes.delete(t.targetId);
+        inFlightEntityDeletes.delete(getSyncEntityKey(t.action, t.targetId));
       }
     }
     isCloudSyncBusy = false;
@@ -1141,6 +1139,8 @@ export const triggerCloudSync = (action: string, payload: any) => {
       else if (action.includes('StockMovement')) saveToIDB(STORES.STOCK_MOVEMENTS, payload);
       else if (action.includes('User')) saveToIDB(STORES.USERS, payload);
       else if (action.includes('Route')) saveToIDB(STORES.ROUTES, payload);
+      else if (action.includes('OrderBooker')) saveToIDB(STORES.ORDER_BOOKERS, payload);
+      else if (action.includes('DeliveryMan')) saveToIDB(STORES.DELIVERY_MEN, payload);
     } else if (action.startsWith('delete')) {
       const id = payload.id || payload.ID || payload.Id || payload.Code;
       if (id) {
@@ -1155,7 +1155,8 @@ export const triggerCloudSync = (action: string, payload: any) => {
         else if (action.includes('Closing')) deleteFromIDB(STORES.CLOSINGS, id);
         else if (action.includes('StockInward')) deleteFromIDB(STORES.STOCK_INWARD, id);
         else if (action.includes('StockMovement')) deleteFromIDB(STORES.STOCK_MOVEMENTS, id);
-        purgeSyncQueueForEntity(String(id));
+        else if (action.includes('OrderBooker')) deleteFromIDB(STORES.ORDER_BOOKERS, id);
+        else if (action.includes('DeliveryMan')) deleteFromIDB(STORES.DELIVERY_MEN, id);
       }
     }
   } catch (err) {
@@ -1430,7 +1431,7 @@ const getMockInventory = (): InventoryItem[] => {
   if (data) {
     try {
       const parsed = JSON.parse(data);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) return normalizePulledInventory(parsed);
     } catch {}
   }
   return [];
@@ -1443,7 +1444,7 @@ const getMockOutlets = (): Outlet[] => {
   if (data) {
     try {
       const parsed = JSON.parse(data);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) return normalizePulledOutlets(parsed);
     } catch {}
   }
   return [];
@@ -1454,7 +1455,7 @@ const getMockRoutes = (): RouteRecord[] => {
   if (data) {
     try {
       const parsed = JSON.parse(data);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) return normalizePulledIds<RouteRecord>(parsed);
     } catch {}
   }
   return [];
@@ -1465,7 +1466,10 @@ const getMockSales = (): SaleRecord[] => {
   if (data) {
     try {
       const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) return parsed.map((sale: any) => ({
+        ...sale,
+        ID: String(sale?.ID ?? sale?.id ?? '')
+      }));
     } catch (e) {
       console.error(e);
     }
@@ -1478,7 +1482,7 @@ export const getSales = (): SaleRecord[] => getMockSales();
 // --- DISPATCH LOADS ---
 const getMockLoads = (): DispatchLoad[] => {
   const data = localStorage.getItem(MOCK_LOADS_KEY);
-  if (data) return JSON.parse(data);
+  if (data) return normalizePulledIds<DispatchLoad>(JSON.parse(data));
   return [];
 };
 
@@ -1516,7 +1520,7 @@ export const addStockMovement = async (mov: Omit<StockMovementRecord, 'ID' | 'Cr
 };
 
 export const fetchStockMovements = async (): Promise<StockMovementRecord[]> => {
-  return JSON.parse(localStorage.getItem(MOCK_MOVEMENTS_KEY) || '[]');
+  return normalizePulledIds<StockMovementRecord>(JSON.parse(localStorage.getItem(MOCK_MOVEMENTS_KEY) || '[]'));
 };
 
 // --- GOOGLE SHEETS LIVE DATA NORMALIZERS ---
@@ -1612,10 +1616,60 @@ function normalizePulledOutlets(outlets: any[]): Outlet[] {
   });
 }
 
+function normalizeAssignedRoutes(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(route => String(route).trim()).filter(Boolean);
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map(route => String(route).trim()).filter(Boolean) : [];
+  } catch {
+    // Plain comma-separated routes are also used by existing sheets.
+  }
+  return value.split(',').map(route => route.trim()).filter(Boolean);
+}
+
+function normalizePulledOrderBookers(records: any[]): OrderBooker[] {
+  if (!Array.isArray(records)) return [];
+  return records.map(record => ({
+    ...record,
+    ID: String(record?.ID ?? record?.id ?? ''),
+    Name: String(record?.Name ?? '').trim(),
+    Phone: String(record?.Phone ?? ''),
+    AssignedRoutes: normalizeAssignedRoutes(record?.AssignedRoutes ?? record?.AssignedRoute)
+  })).filter(record => record.Name.length > 0);
+}
+
+function normalizePulledDeliveryMen(records: any[]): DeliveryMan[] {
+  if (!Array.isArray(records)) return [];
+  return records.map(record => ({
+    ...record,
+    ID: String(record?.ID ?? record?.id ?? ''),
+    Name: String(record?.Name ?? '').trim(),
+    Phone: String(record?.Phone ?? '')
+  })).filter(record => record.Name.length > 0);
+}
+
+function normalizePulledIds<T>(records: any[], idKey = 'ID'): T[] {
+  if (!Array.isArray(records)) return [];
+  return records.map(record => ({
+    ...record,
+    [idKey]: String(record?.[idKey] ?? record?.[idKey === 'id' ? 'ID' : 'id'] ?? '')
+  })) as T[];
+}
+
 // --- AUTOMATIC DEFAULT GOOGLE SHEET DATA FETCH ENGINE ---
+interface GoogleSheetPullResult {
+  success: boolean;
+  message: string;
+  error?: string;
+  counts?: Record<string, number>;
+}
+
 let initialFetchPromise: Promise<boolean> | null = null;
+let activeGoogleSheetPull: Promise<GoogleSheetPullResult> | null = null;
 let hasInitiallyFetched = false;
 let nextFetchAttemptAt = 0;
+let fetchFailureCount = 0;
 
 export const ensureDataFetchedFromGoogleSheet = async (forceRefresh: boolean = false): Promise<boolean> => {
   if (hasInitiallyFetched && !forceRefresh) {
@@ -1642,19 +1696,13 @@ export const ensureDataFetchedFromGoogleSheet = async (forceRefresh: boolean = f
       }
 
       updateRuntimeSyncStatus({ state: 'SAVING' });
-      // 15 second timeout to allow Google Apps Script to fetch all 13 sheet tabs
-      const timeoutPromise = new Promise<{ success: boolean }>((res) => 
-        setTimeout(() => res({ success: false }), 15000)
-      );
-      const pullPromise = pullAllDataFromGoogleSheet();
-      const result = await Promise.race([pullPromise, timeoutPromise]);
-      hasInitiallyFetched = result.success;
-      nextFetchAttemptAt = result.success ? 0 : Date.now() + 30_000;
+      const result = await pullAllDataFromGoogleSheet();
       return result.success;
     } catch (err) {
       console.warn('[Google Sheet] Default fetch notice:', err);
       hasInitiallyFetched = false;
-      nextFetchAttemptAt = Date.now() + 30_000;
+      fetchFailureCount += 1;
+      nextFetchAttemptAt = Date.now() + Math.min(120_000, 30_000 * (2 ** (fetchFailureCount - 1)));
       return false;
     } finally {
       initialFetchPromise = null;
@@ -1752,7 +1800,7 @@ export const deleteInventoryItem = async (id: string): Promise<void> => {
 // --- STOCK INWARD (FLOOR STOCK ENTRY) ---
 export const fetchStockInwardRecords = async (forceRefresh: boolean = false): Promise<StockInwardRecord[]> => {
   await ensureDataFetchedFromGoogleSheet(forceRefresh);
-  return JSON.parse(localStorage.getItem(MOCK_STOCK_IN_KEY) || '[]');
+  return normalizePulledIds<StockInwardRecord>(JSON.parse(localStorage.getItem(MOCK_STOCK_IN_KEY) || '[]'));
 };
 
 export const addStockInward = async (record: Omit<StockInwardRecord, 'ID' | 'CreatedAt'>): Promise<void> => {
@@ -2314,7 +2362,7 @@ export const deleteRoute = async (id: string): Promise<void> => {
 // --- PAYMENTS & CUSTOMER LEDGER ---
 export const fetchPayments = async (forceRefresh: boolean = false): Promise<PaymentRecord[]> => {
   await ensureDataFetchedFromGoogleSheet(forceRefresh);
-  return JSON.parse(localStorage.getItem(MOCK_PAYMENTS_KEY) || '[]');
+  return normalizePulledIds<PaymentRecord>(JSON.parse(localStorage.getItem(MOCK_PAYMENTS_KEY) || '[]'));
 };
 
 export const addPaymentRecord = async (payment: PaymentRecord): Promise<void> => {
@@ -2336,7 +2384,6 @@ export const deletePayment = async (id: string): Promise<void> => {
   const payments = await fetchPayments();
   localStorage.setItem(MOCK_PAYMENTS_KEY, JSON.stringify(payments.filter(p => p.ID !== id)));
   triggerCloudSync('deletePayment', { ID: id });
-  await purgeSyncQueueForEntity(id);
   await logAudit('DELETE_PAYMENT', 'Finance', `Deleted payment record ID: ${id}`);
 };
 
@@ -2350,16 +2397,19 @@ export const getOrderBookers = (): OrderBooker[] => {
       const parsed = JSON.parse(data);
       if (Array.isArray(parsed)) {
         return parsed
-          .filter((booker): booker is OrderBooker & { AssignedRoute?: string } =>
-            booker && typeof booker.ID === 'string' && typeof booker.Name === 'string'
+          .filter(booker =>
+            booker &&
+            (typeof booker.ID === 'string' || typeof booker.ID === 'number') &&
+            typeof booker.Name === 'string'
           )
           .map(booker => ({
             ...booker,
-            AssignedRoutes: booker.AssignedRoutes ||
-              (typeof booker.AssignedRoute === 'string' && booker.AssignedRoute.trim()
-                ? [booker.AssignedRoute.trim()]
-                : [])
-          }));
+            ID: String(booker.ID),
+            Name: booker.Name.trim(),
+            Phone: String(booker.Phone ?? ''),
+            AssignedRoutes: normalizeAssignedRoutes(booker.AssignedRoutes ?? booker.AssignedRoute)
+          }))
+          .filter(booker => booker.Name.length > 0);
       }
     } catch (error) {
       console.error('[Order Bookers] Could not read cached order bookers:', error);
@@ -2429,9 +2479,19 @@ const DELETED_DELIVERY_MEN_KEY = 'warsa_deleted_delivery_man_names_v1';
 export const getDeliveryMen = (): DeliveryMan[] => {
   try {
     const data = JSON.parse(localStorage.getItem(MOCK_DELIVERY_MEN_KEY) || '[]');
-    const stored = Array.isArray(data) ? data.filter((person): person is DeliveryMan =>
-      person && typeof person.ID === 'string' && typeof person.Name === 'string' && person.Name.trim().length > 0
-    ) : [];
+    const stored = Array.isArray(data) ? data
+      .filter(person =>
+        person &&
+        (typeof person.ID === 'string' || typeof person.ID === 'number') &&
+        typeof person.Name === 'string' &&
+        person.Name.trim().length > 0
+      )
+      .map(person => ({
+        ...person,
+        ID: String(person.ID),
+        Name: person.Name.trim(),
+        Phone: String(person.Phone ?? '')
+      })) : [];
     const deletedData = JSON.parse(localStorage.getItem(DELETED_DELIVERY_MEN_KEY) || '[]');
     const deletedNames = new Set<string>(
       Array.isArray(deletedData) ? deletedData.filter((name): name is string => typeof name === 'string').map(name => name.trim().toLowerCase()) : []
@@ -2505,7 +2565,7 @@ export const deleteDeliveryMan = async (id: string): Promise<void> => {
 // --- DAILY CLOSINGS ---
 export const fetchDailyClosings = async (forceRefresh: boolean = false): Promise<DailyClosingRecord[]> => {
   await ensureDataFetchedFromGoogleSheet(forceRefresh);
-  return JSON.parse(localStorage.getItem(MOCK_CLOSINGS_KEY) || '[]');
+  return normalizePulledIds<DailyClosingRecord>(JSON.parse(localStorage.getItem(MOCK_CLOSINGS_KEY) || '[]'));
 };
 
 export const saveDailyClosing = async (closing: DailyClosingRecord): Promise<void> => {
@@ -2759,7 +2819,7 @@ const getMockCashSlips = (): CashSlipRecord[] => {
   if (data) {
     try {
       const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) return normalizePulledIds<CashSlipRecord>(parsed, 'id');
     } catch {}
   }
   return [];
@@ -2945,6 +3005,8 @@ export const callGoogleAppsScript = async (
 
   // Always use POST so tokens and business payloads never appear in URLs,
   // browser history, proxy logs, or referrer headers.
+  const controller = new AbortController();
+  const requestTimeout = setTimeout(() => controller.abort(), 60_000);
   try {
     const postPayload = {
       action,
@@ -2959,7 +3021,8 @@ export const callGoogleAppsScript = async (
         'Content-Type': 'text/plain;charset=utf-8'
       },
       body: JSON.stringify(postPayload),
-      redirect: 'follow'
+      redirect: 'follow',
+      signal: controller.signal
     });
 
     const text = await res.text();
@@ -2978,10 +3041,18 @@ export const callGoogleAppsScript = async (
     };
   } catch (err: any) {
     console.warn(`[Google Apps Script] POST action=${action} failed:`, err);
+    if (err?.name === 'AbortError') {
+      return {
+        success: false,
+        error: 'Google Apps Script request timed out after 60 seconds.'
+      };
+    }
     return {
       success: false,
       error: `Network error while contacting the server: ${err?.message || 'request failed'}.`
     };
+  } finally {
+    clearTimeout(requestTimeout);
   }
 };
 
@@ -3076,35 +3147,99 @@ export const pushAllDataToGoogleSheet = async (customUrl?: string): Promise<Goog
   return res;
 };
 
+const COLLECTION_MUTATION_ACTIONS: Record<string, string[]> = {
+  saveInventory: [STORES.INVENTORY], deleteInventory: [STORES.INVENTORY], deleteInventoryItem: [STORES.INVENTORY],
+  saveSale: [STORES.SALES], deleteSale: [STORES.SALES], deleteSaleRecord: [STORES.SALES],
+  saveOutlet: [STORES.OUTLETS], deleteOutlet: [STORES.OUTLETS],
+  saveDispatch: [STORES.DISPATCH], deleteDispatch: [STORES.DISPATCH], deleteDispatchLoad: [STORES.DISPATCH],
+  saveCashSlip: [STORES.CASH_SLIPS], deleteCashSlip: [STORES.CASH_SLIPS],
+  savePayment: [STORES.PAYMENTS], deletePayment: [STORES.PAYMENTS],
+  saveClosing: [STORES.CLOSINGS],
+  saveStockInward: [STORES.STOCK_INWARD],
+  saveStockMovement: [STORES.STOCK_MOVEMENTS],
+  saveRoute: [STORES.ROUTES], deleteRoute: [STORES.ROUTES],
+  saveUser: [STORES.USERS], deleteUser: [STORES.USERS],
+  saveOrderBooker: [STORES.ORDER_BOOKERS], deleteOrderBooker: [STORES.ORDER_BOOKERS],
+  saveDeliveryMan: [STORES.DELIVERY_MEN], deleteDeliveryMan: [STORES.DELIVERY_MEN]
+};
+
 const replaceCachedCollection = async <T>(
   storageKey: string,
   storeName: typeof STORES[keyof typeof STORES],
-  records: T[]
+  records: T[],
+  pendingMutations: Array<{ action: string; payload: any }>
 ): Promise<boolean> => {
-  const serialized = JSON.stringify(records);
+  const idKey = storeName === STORES.CASH_SLIPS || storeName === STORES.USERS ? 'id' : 'ID';
   const cached = localStorage.getItem(storageKey);
+  let localRecords: any[] = [];
+  if (cached !== null) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed)) localRecords = parsed;
+    } catch {
+      // Replace malformed cache data with the successfully fetched records.
+    }
+  }
+
+  const pendingForStore = pendingMutations.filter(mutation =>
+    COLLECTION_MUTATION_ACTIONS[mutation.action]?.includes(storeName)
+  );
+  const recordsById = new Map<string, any>();
+  for (const [index, record] of (records as any[]).entries()) {
+    const id = String(record?.[idKey] ?? record?.[idKey === 'id' ? 'ID' : 'id'] ?? '');
+    recordsById.set(id || `__record_without_id_${index}`, record);
+  }
+
+  for (const mutation of pendingForStore) {
+    const payload = mutation.payload;
+    const id = String(payload && typeof payload === 'object'
+      ? payload[idKey] ?? payload.ID ?? payload.id ?? payload.Id ?? payload.Code ?? payload.code ?? ''
+      : payload ?? '').trim();
+    if (!id) continue;
+
+    if (mutation.action.startsWith('delete')) {
+      recordsById.delete(id);
+      continue;
+    }
+
+    const localRecord = localRecords.find(record =>
+      String(record?.[idKey] ?? record?.[idKey === 'id' ? 'ID' : 'id'] ?? '') === id
+    );
+    const pendingRecord = localRecord || (payload && typeof payload === 'object' ? payload : null);
+    if (pendingRecord) recordsById.set(id, pendingRecord);
+  }
+
+  const mergedRecords = Array.from(recordsById.values()) as T[];
+  const serialized = JSON.stringify(mergedRecords);
   if (cached !== null) {
     try {
       if (JSON.stringify(JSON.parse(cached)) === serialized) return false;
     } catch {
-      // Replace a malformed cache with the successfully fetched records.
+      // Replace malformed cache data below.
     }
   }
 
   localStorage.setItem(storageKey, serialized);
-  await replaceStoreInIDB(storeName, records);
+  await replaceStoreInIDB(storeName, mergedRecords);
   return true;
+};
+
+const getPendingMutationsForPull = async (): Promise<Array<{ action: string; payload: any; mutationId?: string }>> => {
+  const persisted = await getAllFromIDB<{ action: string; payload: any; mutationId?: string }>(STORES.SYNC_QUEUE);
+  const seen = new Set<string>();
+  return [...persisted, ...syncQueue]
+    .filter(mutation => {
+      const key = mutation.mutationId || `${mutation.action}:${JSON.stringify(mutation.payload)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 };
 
 /**
  * Pull all cloud records from Google Sheets into local high-speed persistent store.
  */
-export const pullAllDataFromGoogleSheet = async (customUrl?: string): Promise<{
-  success: boolean;
-  message: string;
-  error?: string;
-  counts?: Record<string, number>;
-}> => {
+const pullAllDataFromGoogleSheetOnce = async (customUrl?: string): Promise<GoogleSheetPullResult> => {
   const res = await callGoogleAppsScript('getAllData', null, customUrl);
   if (!res || !res.success || !res.data) {
     return {
@@ -3116,94 +3251,87 @@ export const pullAllDataFromGoogleSheet = async (customUrl?: string): Promise<{
 
   const { data } = res;
   const counts: Record<string, number> = {};
+  const pendingMutations = await getPendingMutationsForPull();
 
   if (Array.isArray(data.inventory)) {
     const normalized = normalizePulledInventory(data.inventory);
-    // Do not erase locally-created products when a temporarily empty cloud
-    // response arrives before their queued mutations are uploaded.
-    const localInventory = getMockInventory();
-    const finalInventory = normalized.length > 0 || localInventory.length === 0
-      ? normalized
-      : localInventory;
-    if (normalized.length > 0 || localInventory.length === 0) {
-      if (await replaceCachedCollection(MOCK_INVENTORY_KEY, STORES.INVENTORY, finalInventory)) {
-        counts['Inventory'] = finalInventory.length;
-      }
+    if (await replaceCachedCollection(MOCK_INVENTORY_KEY, STORES.INVENTORY, normalized, pendingMutations)) {
+      counts['Inventory'] = normalized.length;
     }
   }
   if (Array.isArray(data.sales)) {
     const normalized = normalizePulledSales(data.sales);
-    if (await replaceCachedCollection(MOCK_SALES_KEY, STORES.SALES, normalized)) {
+    if (await replaceCachedCollection(MOCK_SALES_KEY, STORES.SALES, normalized, pendingMutations)) {
       counts['Sales'] = normalized.length;
     }
   }
   if (Array.isArray(data.outlets)) {
     const normalized = normalizePulledOutlets(data.outlets);
-    if (await replaceCachedCollection(MOCK_OUTLETS_KEY, STORES.OUTLETS, normalized)) {
+    if (await replaceCachedCollection(MOCK_OUTLETS_KEY, STORES.OUTLETS, normalized, pendingMutations)) {
       counts['Outlets'] = normalized.length;
     }
   }
   if (Array.isArray(data.dispatches)) {
-    if (await replaceCachedCollection(MOCK_LOADS_KEY, STORES.DISPATCH, data.dispatches)) {
-      counts['Dispatches'] = data.dispatches.length;
+    const normalized = normalizePulledIds<DispatchLoad>(data.dispatches);
+    if (await replaceCachedCollection(MOCK_LOADS_KEY, STORES.DISPATCH, normalized, pendingMutations)) {
+      counts['Dispatches'] = normalized.length;
     }
   }
   if (Array.isArray(data.cashSlips)) {
-    if (await replaceCachedCollection(MOCK_CASH_SLIPS_KEY, STORES.CASH_SLIPS, data.cashSlips)) {
-      counts['CashSlips'] = data.cashSlips.length;
+    const normalized = normalizePulledIds<CashSlipRecord>(data.cashSlips, 'id');
+    if (await replaceCachedCollection(MOCK_CASH_SLIPS_KEY, STORES.CASH_SLIPS, normalized, pendingMutations)) {
+      counts['CashSlips'] = normalized.length;
     }
   }
   if (Array.isArray(data.payments)) {
-    if (await replaceCachedCollection(MOCK_PAYMENTS_KEY, STORES.PAYMENTS, data.payments)) {
-      counts['Payments'] = data.payments.length;
+    const normalized = normalizePulledIds<PaymentRecord>(data.payments);
+    if (await replaceCachedCollection(MOCK_PAYMENTS_KEY, STORES.PAYMENTS, normalized, pendingMutations)) {
+      counts['Payments'] = normalized.length;
     }
   }
   if (Array.isArray(data.dailyClosings)) {
-    if (await replaceCachedCollection(MOCK_CLOSINGS_KEY, STORES.CLOSINGS, data.dailyClosings)) {
-      counts['DailyClosings'] = data.dailyClosings.length;
+    const normalized = normalizePulledIds<DailyClosingRecord>(data.dailyClosings);
+    if (await replaceCachedCollection(MOCK_CLOSINGS_KEY, STORES.CLOSINGS, normalized, pendingMutations)) {
+      counts['DailyClosings'] = normalized.length;
     }
   }
   if (Array.isArray(data.routes)) {
-    if (await replaceCachedCollection(MOCK_ROUTES_KEY, STORES.ROUTES, data.routes)) {
-      counts['Routes'] = data.routes.length;
+    const normalized = normalizePulledIds<RouteRecord>(data.routes);
+    if (await replaceCachedCollection(MOCK_ROUTES_KEY, STORES.ROUTES, normalized, pendingMutations)) {
+      counts['Routes'] = normalized.length;
     }
   }
   if (Array.isArray(data.stockInward)) {
-    if (await replaceCachedCollection(MOCK_STOCK_IN_KEY, STORES.STOCK_INWARD, data.stockInward)) {
-      counts['StockInward'] = data.stockInward.length;
+    const normalized = normalizePulledIds<StockInwardRecord>(data.stockInward);
+    if (await replaceCachedCollection(MOCK_STOCK_IN_KEY, STORES.STOCK_INWARD, normalized, pendingMutations)) {
+      counts['StockInward'] = normalized.length;
     }
   }
   if (Array.isArray(data.stockMovements)) {
-    if (await replaceCachedCollection(MOCK_MOVEMENTS_KEY, STORES.STOCK_MOVEMENTS, data.stockMovements)) {
-      counts['StockMovements'] = data.stockMovements.length;
+    const normalized = normalizePulledIds<StockMovementRecord>(data.stockMovements);
+    if (await replaceCachedCollection(MOCK_MOVEMENTS_KEY, STORES.STOCK_MOVEMENTS, normalized, pendingMutations)) {
+      counts['StockMovements'] = normalized.length;
     }
   }
-  if (Array.isArray(data.users) && data.users.length > 0) {
-    const hasAdmin = data.users.some((u: any) => u.role === 'SUPER_ADMIN' || u.username === 'admin');
+  if (Array.isArray(data.users)) {
+    const normalized = normalizePulledIds<AppUserProfile>(data.users, 'id');
+    const hasAdmin = normalized.some((u: any) => u.role === 'SUPER_ADMIN' || u.username === 'admin');
     if (hasAdmin) {
-      const currentUsers = localStorage.getItem(APP_USERS_KEY);
-      let usersChanged = true;
-      if (currentUsers !== null) {
-        try {
-          usersChanged = JSON.stringify(JSON.parse(currentUsers)) !== JSON.stringify(data.users);
-        } catch {
-          usersChanged = true;
-        }
-      }
-      if (usersChanged) {
-        localStorage.setItem(APP_USERS_KEY, JSON.stringify(data.users));
-        counts['Users'] = data.users.length;
+      if (await replaceCachedCollection(APP_USERS_KEY, STORES.USERS, normalized, pendingMutations)) {
+        counts['Users'] = normalized.length;
       }
     }
   }
   if (Array.isArray(data.orderBookers)) {
-    if (await replaceCachedCollection(MOCK_OBS_KEY, STORES.ORDER_BOOKERS, data.orderBookers)) {
-      counts['OrderBookers'] = data.orderBookers.length;
+    const normalized = normalizePulledOrderBookers(data.orderBookers);
+    if (await replaceCachedCollection(MOCK_OBS_KEY, STORES.ORDER_BOOKERS, normalized, pendingMutations)) {
+      counts['OrderBookers'] = normalized.length;
     }
   }
   if (Array.isArray(data.deliveryMen)) {
-    if (await replaceCachedCollection(MOCK_DELIVERY_MEN_KEY, STORES.DELIVERY_MEN, data.deliveryMen)) {
-      counts['DeliveryMen'] = data.deliveryMen.length;
+    const normalized = normalizePulledDeliveryMen(data.deliveryMen);
+    if (await replaceCachedCollection(MOCK_DELIVERY_MEN_KEY, STORES.DELIVERY_MEN, normalized, pendingMutations)) {
+      counts['DeliveryMen'] = normalized.length;
     }
   }
 
@@ -3219,7 +3347,7 @@ export const pullAllDataFromGoogleSheet = async (customUrl?: string): Promise<{
     lastError: undefined
   });
 
-  if (typeof window !== 'undefined' && Object.keys(counts).length > 0) {
+  if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('warsa_data_refreshed', { detail: counts }));
   }
 
@@ -3228,6 +3356,45 @@ export const pullAllDataFromGoogleSheet = async (customUrl?: string): Promise<{
     message: 'Data successfully synchronized from Google Sheet.',
     counts
   };
+};
+
+export const pullAllDataFromGoogleSheet = (customUrl?: string): Promise<GoogleSheetPullResult> => {
+  if (activeGoogleSheetPull) return activeGoogleSheetPull;
+
+  activeGoogleSheetPull = (async () => {
+    let result: GoogleSheetPullResult;
+    try {
+      result = await pullAllDataFromGoogleSheetOnce(customUrl);
+    } catch (error) {
+      console.error('[Google Sheet] Data pull failed:', error);
+      result = {
+        success: false,
+        message: 'Failed to pull data from Google Sheet.',
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+
+    hasInitiallyFetched = result.success;
+    if (result.success) {
+      fetchFailureCount = 0;
+      nextFetchAttemptAt = 0;
+    } else {
+      fetchFailureCount += 1;
+      nextFetchAttemptAt = Date.now() + Math.min(120_000, 30_000 * (2 ** (fetchFailureCount - 1)));
+      updateRuntimeSyncStatus({
+        state: 'ERROR',
+        lastError: result.error || result.message
+      });
+    }
+
+    return result;
+  })().finally(() => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('warsa_pull_finished'));
+    }
+    activeGoogleSheetPull = null;
+  });
+  return activeGoogleSheetPull;
 };
 
 // =========================================================================

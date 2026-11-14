@@ -200,27 +200,34 @@ const GOOGLE_APPS_SCRIPT_URL = (process.env.GOOGLE_APPS_SCRIPT_URL || '').trim()
 
 app.post('/api/google-sheets', async (req: Request, res: Response) => {
   if (!GOOGLE_APPS_SCRIPT_URL) {
-    return res.status(200).json({
-      success: true,
+    return res.status(503).json({
+      success: false,
       configured: false,
-      message: 'Google Sheets sync is not configured. Local-only mode is active.',
-      sheetName: 'Warsa Beverage'
+      error: 'Google Sheets sync is unavailable: GOOGLE_APPS_SCRIPT_URL is not configured on the server.'
     });
   }
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 55_000);
   try {
     const upstream = await fetch(GOOGLE_APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {}),
-      redirect: 'follow'
+      redirect: 'follow',
+      signal: controller.signal
     });
 
     const body = await upstream.text();
     res.status(upstream.status).type('application/json').send(body);
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      return res.status(504).json({ success: false, error: 'Google Sheets took too long.' });
+    }
     console.error('[Google Sheets Proxy] Upstream request failed:', error);
     res.status(502).json({ success: false, error: 'Google Sheets backend is unavailable.' });
+  } finally {
+    clearTimeout(timeout);
   }
 });
 

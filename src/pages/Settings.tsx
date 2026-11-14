@@ -87,7 +87,7 @@ import { getSyncQueueCount, syncPendingMutations } from '../utils/indexedDB';
 import { seedIndexedDBFromLocalStorage } from '../api';
 import { getFirebaseIdToken } from '@/src/lib/firebase';
 
-const APPS_SCRIPT_CODE = APPS_SCRIPT_SOURCE;
+const APPS_SCRIPT_CODE = APPS_SCRIPT_SOURCE.join('\n');
 
 interface SettingsProps {
   currentUser: AppUserProfile;

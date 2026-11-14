@@ -69,6 +69,24 @@ var SHEETS = {
 // --- ENTERPRISE SCHEMAS (Headers definition) ---
 var SCHEMAS = {};
 
+// These caches are reset for every web request and are also safe for direct
+// editor invocations, where the helpers fall back to their normal behavior.
+var _ss = null;
+var _headers = {};
+var _schemaChecked = {};
+var _textFormatChecked = {};
+var _processedMutations = null;
+var _processedMutationsDirty = false;
+var _auditRows = null;
+var _scriptLock = null;
+
+var TEXT_FORMAT_HEADERS = [
+  'ID', 'id', 'username', 'OutletID', 'InvoiceID', 'ProductID', 'OrderBookerID', 'ReferenceID',
+  'OwnerUID', 'ContactNumber', 'Phone', 'phone', 'ReferenceNumber',
+  'SKU', 'Code', 'OutletCode', 'VehicleNumber', 'LoadNumber', 'slipNumber',
+  'BatchNumber', 'TargetID', 'SaleIDs'
+];
+
 SCHEMAS[SHEETS.INVENTORY] = [
   'ID', 'Name', 'SKU', 'Size', 'UnitType', 'BottlesPerCase', 'Quantity', 
   'OpeningStock', 'StockAdded', 'StockDispatched', 'StockReturned', 'StockDamaged', 
@@ -167,11 +185,60 @@ function doPost(e) {
 }
 
 function getSpreadsheet_() {
+  if (_ss) return _ss;
   var spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   if (!spreadsheet) {
     throw new Error('The configured Google Sheet could not be opened.');
   }
+  _ss = spreadsheet;
   return spreadsheet;
+}
+
+function resetRequestState_() {
+  _ss = null;
+  _headers = {};
+  _schemaChecked = {};
+  _textFormatChecked = {};
+  _processedMutations = null;
+  _processedMutationsDirty = false;
+  _auditRows = [];
+  _scriptLock = null;
+}
+
+function flushRequestState_() {
+  try {
+    if (_processedMutationsDirty && _processedMutations) {
+      var ids = Object.keys(_processedMutations).sort(function(a, b) {
+        return _processedMutations[a] - _processedMutations[b];
+      });
+      while (ids.length > 500) delete _processedMutations[ids.shift()];
+      PropertiesService.getScriptProperties().setProperty(
+        'PROCESSED_MUTATIONS',
+        JSON.stringify(_processedMutations)
+      );
+    }
+  } catch (err) {
+    Logger.log('Could not persist processed mutations: ' + err.toString());
+  }
+
+  try {
+    if (_auditRows && _auditRows.length) {
+      var sheet = ensureSheetWithSchema(SHEETS.AUDIT);
+      var firstRow = sheet.getLastRow() + 1;
+      sheet.getRange(firstRow, 1, _auditRows.length, SCHEMAS[SHEETS.AUDIT].length)
+        .setValues(_auditRows);
+    }
+  } catch (err) {
+    Logger.log('Could not flush audit trail: ' + err.toString());
+  } finally {
+    if (_scriptLock) {
+      try { _scriptLock.releaseLock(); } catch (err) {
+        Logger.log('Could not release script lock: ' + err.toString());
+      }
+      _scriptLock = null;
+    }
+    _auditRows = null;
+  }
 }
 
 /**
@@ -179,6 +246,7 @@ function getSpreadsheet_() {
  * [Validate Action] -> [Verify Token] -> [Authorize Role] -> [Rate Limit] -> [Sanitize Input] -> [Execute] -> [Audit Log]
  */
 function handleRequest(e, isPost) {
+  resetRequestState_();
   var action = '';
   var payload = null;
   var idToken = '';
@@ -268,8 +336,8 @@ function handleRequest(e, isPost) {
     }
 
     // 6. Rate Limit Check (Prevent Denial of Service & Quota Exhaustion)
-    var isWrite = (action.indexOf('save') === 0 || action.indexOf('delete') === 0 || action === 'syncAll' || action === 'batchMutations');
-    var isBulk = (action === 'syncAll' || action === 'batchMutations');
+    var isWrite = (action.indexOf('save') === 0 || action.indexOf('delete') === 0 || action === 'syncAll' || action === 'batchMutations' || action === 'batch');
+    var isBulk = (action === 'syncAll' || action === 'batchMutations' || action === 'batch');
     var limitConfig = isBulk ? CONFIG.RATE_LIMITS.BULK : (isWrite ? CONFIG.RATE_LIMITS.WRITE : CONFIG.RATE_LIMITS.READ);
 
     var rateLimitKey = 'rate:' + authUser.uid + ':' + (isWrite ? 'write' : 'read');
@@ -286,13 +354,24 @@ function handleRequest(e, isPost) {
     // 7. Sanitize Payload against Formula Injection and trim fields
     if (payload && typeof payload === 'object') {
       payload = sanitizeObjectInputs(payload);
-      if (mutationId && action.indexOf('save') === 0) {
+      if (mutationId && (action.indexOf('save') === 0 || action.indexOf('delete') === 0)) {
         payload._mutationId = String(mutationId);
       }
     }
 
     // 8. Execute Authorized Action
     var response = { success: false, message: 'Unhandled action' };
+    if (isWrite || action === 'batch' || action === 'setup') {
+      var scriptLock = LockService.getScriptLock();
+      if (!scriptLock.tryLock(20000)) {
+        return createJsonResponse({
+          success: false,
+          status: 503,
+          error: 'The service is busy processing another write. Please retry shortly.'
+        });
+      }
+      _scriptLock = scriptLock;
+    }
 
     if (action === 'setup') {
       response = setup();
@@ -387,6 +466,8 @@ function handleRequest(e, isPost) {
       status: 500,
       error: 'An internal server error occurred. Request could not be processed.'
     });
+  } finally {
+    flushRequestState_();
   }
 }
 
@@ -650,6 +731,14 @@ function sanitizeCellValue(val) {
   return str;
 }
 
+function sanitizeSheetValue_(header, val) {
+  var sanitized = sanitizeCellValue(val);
+  if (TEXT_FORMAT_HEADERS.indexOf(header) !== -1 && sanitized !== '') {
+    return String(sanitized);
+  }
+  return sanitized;
+}
+
 function sanitizeObjectInputs(obj) {
   if (Array.isArray(obj)) {
     return obj.slice(0, 500).map(function(item) {
@@ -688,14 +777,6 @@ function extractId(payload) {
 
 function logAuditTrail(uid, email, role, action, targetId, status, details, appCheckToken) {
   try {
-    var ss = getSpreadsheet_();
-    var sheet = ss.getSheetByName(SHEETS.AUDIT);
-    if (!sheet) {
-      sheet = ss.insertSheet(SHEETS.AUDIT);
-      sheet.appendRow(SCHEMAS[SHEETS.AUDIT]);
-      formatBrandHeader(sheet, SCHEMAS[SHEETS.AUDIT].length);
-    }
-
     var appCheckStatus = appCheckToken ? 'Verified' : 'Direct';
     var row = [
       new Date().toISOString(),
@@ -709,7 +790,12 @@ function logAuditTrail(uid, email, role, action, targetId, status, details, appC
       appCheckStatus
     ];
 
-    sheet.appendRow(row);
+    if (_auditRows) {
+      _auditRows.push(row);
+    } else {
+      var sheet = ensureSheetWithSchema(SHEETS.AUDIT);
+      sheet.getRange(sheet.getLastRow() + 1, 1, 1, row.length).setValues([row]);
+    }
   } catch (err) {
     Logger.log('Could not write audit trail: ' + err.toString());
   }
@@ -724,14 +810,11 @@ function readSheetRows(sheetName, spreadsheet) {
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet) return [];
 
-  var lastRow = sheet.getLastRow();
-  var lastColumn = sheet.getLastColumn();
-  if (lastRow <= 1 || lastColumn < 1) return [];
-
-  var data = sheet.getRange(1, 1, lastRow, lastColumn).getValues();
+  var data = sheet.getDataRange().getValues();
   if (data.length <= 1) return [];
 
-  var headers = data[0];
+  var headers = _headers[sheetName] || data[0];
+  if (!_headers[sheetName]) _headers[sheetName] = headers.slice();
   var rows = [];
 
   for (var i = 1; i < data.length; i++) {
@@ -781,7 +864,8 @@ function writeSheetRow(sheetName, item, idKey, authUser) {
 
   var sheet = ensureSheetWithSchema(sheetName);
 
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var headers = _headers[sheetName] || sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (!_headers[sheetName]) _headers[sheetName] = headers.slice();
   var idVal = String(item[idKey] || item.ID || item.id || '');
   if (!idVal) {
     idVal = 'REC-' + Date.now();
@@ -828,10 +912,11 @@ function writeSheetRow(sheetName, item, idKey, authUser) {
     var h = headers[c];
     var cellData = item[h];
     if (cellData === undefined) cellData = '';
-    rowValues.push(sanitizeCellValue(cellData));
+    rowValues.push(sanitizeSheetValue_(h, cellData));
   }
 
   if (existingRowIndex > 0) {
+    formatTextFields_(sheet, headers, existingRowIndex, 1);
     sheet.getRange(existingRowIndex, 1, 1, headers.length).setValues([rowValues]);
     if (mutationId) rememberMutation(mutationId);
     return { success: true, action: 'updated', id: idVal };
@@ -839,6 +924,7 @@ function writeSheetRow(sheetName, item, idKey, authUser) {
     if (headers.indexOf('CreatedAt') !== -1 && !item.CreatedAt) {
       rowValues[headers.indexOf('CreatedAt')] = nowIso;
     }
+    formatTextFields_(sheet, headers, lastRow + 1, 1);
     sheet.appendRow(rowValues);
     if (mutationId) rememberMutation(mutationId);
     return { success: true, action: 'created', id: idVal };
@@ -847,34 +933,30 @@ function writeSheetRow(sheetName, item, idKey, authUser) {
 
 function hasProcessedMutation(mutationId) {
   if (!mutationId) return false;
-  var raw = PropertiesService.getScriptProperties().getProperty('PROCESSED_MUTATIONS') || '{}';
-  var registry = {};
-  try {
-    registry = JSON.parse(raw);
-  } catch (e) {
-    registry = {};
+  if (!_processedMutations) {
+    var raw = PropertiesService.getScriptProperties().getProperty('PROCESSED_MUTATIONS') || '{}';
+    var registry = {};
+    try {
+      registry = JSON.parse(raw);
+    } catch (e) {
+      registry = {};
+    }
+    _processedMutations = Object.create(null);
+    if (registry && typeof registry === 'object' && !Array.isArray(registry)) {
+      Object.keys(registry).forEach(function(key) {
+        _processedMutations[key] = registry[key];
+      });
+    }
   }
-  return Boolean(registry[mutationId]);
+  return Object.prototype.hasOwnProperty.call(_processedMutations, mutationId) &&
+    Boolean(_processedMutations[mutationId]);
 }
 
 function rememberMutation(mutationId) {
   if (!mutationId) return;
-  var properties = PropertiesService.getScriptProperties();
-  var raw = properties.getProperty('PROCESSED_MUTATIONS') || '{}';
-  var registry = {};
-  try {
-    registry = JSON.parse(raw);
-  } catch (e) {
-    registry = {};
-  }
-  registry[mutationId] = Date.now();
-  var ids = Object.keys(registry).sort(function(a, b) {
-    return registry[a] - registry[b];
-  });
-  while (ids.length > 500) {
-    delete registry[ids.shift()];
-  }
-  properties.setProperty('PROCESSED_MUTATIONS', JSON.stringify(registry));
+  if (!_processedMutations) hasProcessedMutation(mutationId);
+  _processedMutations[mutationId] = Date.now();
+  _processedMutationsDirty = true;
 }
 
 function deleteSheetRow(sheetName, idVal, idKey, authUser, mutationId) {
@@ -891,7 +973,8 @@ function deleteSheetRow(sheetName, idVal, idKey, authUser, mutationId) {
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) return { success: true, deleted: false };
 
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var headers = _headers[sheetName] || sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (!_headers[sheetName]) _headers[sheetName] = headers.slice();
   var idColIdx = headers.indexOf(idKey);
   if (idColIdx === -1) idColIdx = 0;
 
@@ -912,6 +995,13 @@ function deleteSheetRow(sheetName, idVal, idKey, authUser, mutationId) {
 // =========================================================================
 
 function getAllData(authUser) {
+  if (!authUser || !authUser.authenticated || !authUser.role) {
+    return {
+      success: false,
+      error: 'Authenticated user context is required. Run getAllData through the WARSA app, not directly from the Apps Script editor.'
+    };
+  }
+
   var spreadsheet = getSpreadsheet_();
   var adminRoles = ['SUPER_ADMIN', 'ADMIN'];
   var readRoles = {
@@ -963,6 +1053,7 @@ function handleBatchMutations(mutations, authUser) {
     return { success: false, error: 'Mutations must be an array' };
   }
 
+  var groups = {};
   var processed = 0;
   var failures = [];
   for (var i = 0; i < mutations.length; i++) {
@@ -976,33 +1067,40 @@ function handleBatchMutations(mutations, authUser) {
       continue;
     }
     if (m.mutationId) mutationData._mutationId = String(m.mutationId);
-    var result = { success: false, error: 'Unsupported batch mutation' };
-    if (m.action === 'saveSale') result = writeSheetRow(SHEETS.SALES, mutationData, 'ID', authUser);
-    else if (m.action === 'saveInventory') result = writeSheetRow(SHEETS.INVENTORY, mutationData, 'ID', authUser);
-    else if (m.action === 'saveOutlet') result = writeSheetRow(SHEETS.OUTLETS, mutationData, 'ID', authUser);
-    else if (m.action === 'saveDispatch') result = writeSheetRow(SHEETS.DISPATCH, mutationData, 'ID', authUser);
-    else if (m.action === 'saveCashSlip') result = writeSheetRow(SHEETS.CASH_SLIPS, mutationData, 'id', authUser);
-    else if (m.action === 'savePayment') result = writeSheetRow(SHEETS.PAYMENTS, mutationData, 'ID', authUser);
-    else if (m.action === 'saveClosing') result = writeSheetRow(SHEETS.CLOSINGS, mutationData, 'ID', authUser);
-    else if (m.action === 'saveStockInward') result = writeSheetRow(SHEETS.STOCK_INWARD, mutationData, 'ID', authUser);
-    else if (m.action === 'saveStockMovement') result = writeSheetRow(SHEETS.STOCK_MOVEMENTS, mutationData, 'ID', authUser);
-    else if (m.action === 'saveRoute') result = writeSheetRow(SHEETS.ROUTES, mutationData, 'ID', authUser);
-    else if (m.action === 'saveOrderBooker') result = writeSheetRow(SHEETS.ORDER_BOOKERS, mutationData, 'ID', authUser);
-    else if (m.action === 'saveDeliveryMan') result = writeSheetRow(SHEETS.DELIVERY_MEN, mutationData, 'ID', authUser);
-    else if (m.action === 'deleteSale' || m.action === 'deleteSaleRecord') result = deleteSheetRow(SHEETS.SALES, extractId(mutationData), 'ID', authUser, m.mutationId);
-    else if (m.action === 'deleteInventory' || m.action === 'deleteInventoryItem') result = deleteSheetRow(SHEETS.INVENTORY, extractId(mutationData), 'ID', authUser, m.mutationId);
-    else if (m.action === 'deleteOutlet') result = deleteSheetRow(SHEETS.OUTLETS, extractId(mutationData), 'ID', authUser, m.mutationId);
-    else if (m.action === 'deleteDispatch' || m.action === 'deleteDispatchLoad') result = deleteSheetRow(SHEETS.DISPATCH, extractId(mutationData), 'ID', authUser, m.mutationId);
-    else if (m.action === 'deleteCashSlip') result = deleteSheetRow(SHEETS.CASH_SLIPS, extractId(mutationData), 'id', authUser, m.mutationId);
-    else if (m.action === 'deletePayment') result = deleteSheetRow(SHEETS.PAYMENTS, extractId(mutationData), 'ID', authUser, m.mutationId);
-    else if (m.action === 'deleteRoute') result = deleteSheetRow(SHEETS.ROUTES, extractId(mutationData), 'ID', authUser, m.mutationId);
-    else if (m.action === 'deleteUser') result = deleteSheetRow(SHEETS.USERS, extractId(mutationData), 'id', authUser, m.mutationId);
-    else if (m.action === 'deleteOrderBooker') result = deleteSheetRow(SHEETS.ORDER_BOOKERS, extractId(mutationData), 'ID', authUser, m.mutationId);
-    else if (m.action === 'deleteDeliveryMan') result = deleteSheetRow(SHEETS.DELIVERY_MEN, extractId(mutationData), 'ID', authUser, m.mutationId);
-
-    if (result.success) processed++;
-    else failures.push({ index: i, error: result.error || 'Mutation failed' });
+    var operation = getBatchOperation_(String(m.action));
+    if (!operation) {
+      failures.push({ index: i, error: 'Unsupported batch mutation' });
+      continue;
+    }
+    if (!groups[operation.sheet]) groups[operation.sheet] = [];
+    groups[operation.sheet].push({
+      index: i,
+      mutation: m,
+      data: mutationData,
+      action: String(m.action),
+      operation: operation
+    });
   }
+
+  Object.keys(groups).forEach(function(sheetName) {
+    var group = groups[sheetName];
+    var results;
+    try {
+      results = writeBatchMutationGroup_(sheetName, group, authUser);
+    } catch (err) {
+      results = group.map(function() {
+        return { success: false, error: err.message || 'Batch write failed' };
+      });
+    }
+
+    for (var j = 0; j < results.length; j++) {
+      if (results[j] && results[j].success) processed++;
+      else failures.push({
+        index: group[j].index,
+        error: (results[j] && results[j].error) || 'Mutation failed'
+      });
+    }
+  });
 
   return {
     success: failures.length === 0,
@@ -1010,6 +1108,227 @@ function handleBatchMutations(mutations, authUser) {
     failedCount: failures.length,
     failures: failures
   };
+}
+
+function getBatchOperation_(action) {
+  var saveActions = {
+    saveSale: [SHEETS.SALES, 'ID'],
+    saveInventory: [SHEETS.INVENTORY, 'ID'],
+    saveOutlet: [SHEETS.OUTLETS, 'ID'],
+    saveDispatch: [SHEETS.DISPATCH, 'ID'],
+    saveCashSlip: [SHEETS.CASH_SLIPS, 'id'],
+    savePayment: [SHEETS.PAYMENTS, 'ID'],
+    saveClosing: [SHEETS.CLOSINGS, 'ID'],
+    saveStockInward: [SHEETS.STOCK_INWARD, 'ID'],
+    saveStockMovement: [SHEETS.STOCK_MOVEMENTS, 'ID'],
+    saveRoute: [SHEETS.ROUTES, 'ID'],
+    saveOrderBooker: [SHEETS.ORDER_BOOKERS, 'ID'],
+    saveDeliveryMan: [SHEETS.DELIVERY_MEN, 'ID']
+  };
+  var deleteActions = {
+    deleteSale: [SHEETS.SALES, 'ID'],
+    deleteSaleRecord: [SHEETS.SALES, 'ID'],
+    deleteInventory: [SHEETS.INVENTORY, 'ID'],
+    deleteInventoryItem: [SHEETS.INVENTORY, 'ID'],
+    deleteOutlet: [SHEETS.OUTLETS, 'ID'],
+    deleteDispatch: [SHEETS.DISPATCH, 'ID'],
+    deleteDispatchLoad: [SHEETS.DISPATCH, 'ID'],
+    deleteCashSlip: [SHEETS.CASH_SLIPS, 'id'],
+    deletePayment: [SHEETS.PAYMENTS, 'ID'],
+    deleteRoute: [SHEETS.ROUTES, 'ID'],
+    deleteUser: [SHEETS.USERS, 'id'],
+    deleteOrderBooker: [SHEETS.ORDER_BOOKERS, 'ID'],
+    deleteDeliveryMan: [SHEETS.DELIVERY_MEN, 'ID']
+  };
+  if (saveActions[action]) return { type: 'save', sheet: saveActions[action][0], idKey: saveActions[action][1] };
+  if (deleteActions[action]) return { type: 'delete', sheet: deleteActions[action][0], idKey: deleteActions[action][1] };
+  return null;
+}
+
+function writeBatchMutationGroup_(sheetName, entries, authUser) {
+  var hasSave = entries.some(function(entry) { return entry.operation.type === 'save'; });
+  var sheet = hasSave
+    ? ensureSheetWithSchema(sheetName)
+    : getSpreadsheet_().getSheetByName(sheetName);
+  if (!sheet) {
+    return entries.map(function(entry) {
+      var id = String(extractId(entry.data) || '').trim();
+      if (!id) return { success: false, error: 'Target ID required for deletion' };
+      var mutationId = String(entry.data._mutationId || entry.mutation.mutationId || '').trim();
+      if (mutationId && hasProcessedMutation(mutationId)) {
+        return { success: true, action: 'duplicate', id: id };
+      }
+      return { success: true, deleted: false };
+    });
+  }
+
+  var headers = _headers[sheetName];
+  if (!headers) {
+    var headerWidth = sheet.getLastColumn();
+    headers = headerWidth > 0
+      ? sheet.getRange(1, 1, 1, headerWidth).getValues()[0]
+      : (SCHEMAS[sheetName] || ['ID']);
+    _headers[sheetName] = headers.slice();
+  }
+  var idKey = entries[0].operation.idKey;
+  var idColIdx = headers.indexOf(idKey);
+  if (idColIdx === -1) idColIdx = 0;
+  var lastRow = sheet.getLastRow();
+  var slots = [];
+  var slotsById = Object.create(null);
+  if (lastRow > 1) {
+    var ids = sheet.getRange(2, idColIdx + 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      var existingId = ids[i][0] === null || ids[i][0] === undefined
+        ? ''
+        : String(ids[i][0]).trim();
+      var slot = { row: i + 2, id: existingId, deleted: false, values: null, dirty: false };
+      slots.push(slot);
+      if (existingId) {
+        if (!slotsById[existingId]) slotsById[existingId] = [];
+        slotsById[existingId].push(slot);
+      }
+    }
+  }
+
+  var results = new Array(entries.length);
+  var mutationIds = [];
+  var pendingMutationIds = Object.create(null);
+  for (var e = 0; e < entries.length; e++) {
+    var entry = entries[e];
+    var item = entry.data;
+    var mutationId = String(item._mutationId || entry.mutation.mutationId || '').trim();
+    var targetId = entry.operation.type === 'save'
+      ? String(item[entry.operation.idKey] || item.ID || item.id || '').trim()
+      : String(extractId(item) || '').trim();
+
+    if (entry.operation.type === 'delete' && !targetId) {
+      results[e] = { success: false, error: 'Target ID required for deletion' };
+      continue;
+    }
+    if (mutationId && (hasProcessedMutation(mutationId) || pendingMutationIds[mutationId])) {
+      results[e] = { success: true, action: 'duplicate', id: targetId };
+      continue;
+    }
+
+    if (entry.operation.type === 'delete') {
+      var matches = slotsById[targetId] || [];
+      var deleteSlot = null;
+      for (var d = matches.length - 1; d >= 0; d--) {
+        if (!matches[d].deleted) {
+          deleteSlot = matches[d];
+          break;
+        }
+      }
+      if (!deleteSlot) {
+        results[e] = { success: true, deleted: false, message: 'Record not found' };
+        continue;
+      }
+      deleteSlot.deleted = true;
+      results[e] = { success: true, deleted: true, id: targetId };
+    } else {
+      if (mutationId) delete item._mutationId;
+      var idVal = targetId;
+      if (!idVal) {
+        idVal = 'REC-' + Date.now();
+        item[entry.operation.idKey] = idVal;
+      }
+
+      var nowIso = new Date().toISOString();
+      if (headers.indexOf('UpdatedAt') !== -1) item.UpdatedAt = nowIso;
+      if (authUser) {
+        if (headers.indexOf('OwnerUID') !== -1 && !item.OwnerUID) item.OwnerUID = authUser.uid;
+        if (headers.indexOf('UpdatedBy') !== -1) item.UpdatedBy = authUser.email || authUser.uid;
+        if (headers.indexOf('CreatedBy') !== -1 && !item.CreatedBy) item.CreatedBy = authUser.email || authUser.uid;
+      }
+
+      var rowValues = [];
+      for (var c = 0; c < headers.length; c++) {
+        var value = item[headers[c]];
+        rowValues.push(value === undefined ? '' : sanitizeSheetValue_(headers[c], value));
+      }
+
+      var saveMatches = slotsById[idVal] || [];
+      var destination = null;
+      for (var s = 0; s < saveMatches.length; s++) {
+        if (!saveMatches[s].deleted) {
+          destination = saveMatches[s];
+          break;
+        }
+      }
+      if (destination) {
+        destination.values = rowValues;
+        destination.dirty = true;
+        results[e] = { success: true, action: 'updated', id: idVal };
+      } else {
+        if (headers.indexOf('CreatedAt') !== -1 && !item.CreatedAt) {
+          rowValues[headers.indexOf('CreatedAt')] = nowIso;
+        }
+        destination = { row: null, id: idVal, deleted: false, values: rowValues, dirty: true };
+        slots.push(destination);
+        if (!slotsById[idVal]) slotsById[idVal] = [];
+        slotsById[idVal].push(destination);
+        results[e] = { success: true, action: 'created', id: idVal };
+      }
+    }
+    if (mutationId) {
+      mutationIds.push(mutationId);
+      pendingMutationIds[mutationId] = true;
+    }
+  }
+
+  var deletedRows = [];
+  var updates = {};
+  var appends = [];
+  for (var p = 0; p < slots.length; p++) {
+    var current = slots[p];
+    if (current.deleted) {
+      if (current.row !== null) deletedRows.push(current.row);
+    } else if (current.dirty) {
+      if (current.row === null) appends.push(current.values);
+      else updates[current.row] = current.values;
+    }
+  }
+
+  deletedRows.sort(function(a, b) { return a - b; });
+  var deleteRanges = [];
+  for (var q = 0; q < deletedRows.length; q++) {
+    var lastRange = deleteRanges[deleteRanges.length - 1];
+    if (lastRange && lastRange.start + lastRange.count === deletedRows[q]) {
+      lastRange.count++;
+    } else {
+      deleteRanges.push({ start: deletedRows[q], count: 1 });
+    }
+  }
+  for (var x = deleteRanges.length - 1; x >= 0; x--) {
+    sheet.deleteRows(deleteRanges[x].start, deleteRanges[x].count);
+  }
+
+  var updateRows = Object.keys(updates).map(function(row) {
+    var originalRow = Number(row);
+    var removedBefore = 0;
+    for (var z = 0; z < deletedRows.length && deletedRows[z] < originalRow; z++) removedBefore++;
+    return { original: originalRow, current: originalRow - removedBefore };
+  }).sort(function(a, b) { return a.current - b.current; });
+  var start = 0;
+  while (start < updateRows.length) {
+    var end = start + 1;
+    while (end < updateRows.length && updateRows[end].current === updateRows[end - 1].current + 1) end++;
+    var firstRow = updateRows[start].current;
+    var values = [];
+    for (var r = start; r < end; r++) values.push(updates[updateRows[r].original]);
+    formatTextFields_(sheet, headers, firstRow, values.length);
+    sheet.getRange(firstRow, 1, values.length, headers.length).setValues(values);
+    start = end;
+  }
+  if (appends.length) {
+    var firstAppendRow = lastRow + 1 - deletedRows.length;
+    formatTextFields_(sheet, headers, firstAppendRow, appends.length);
+    sheet.getRange(firstAppendRow, 1, appends.length, headers.length).setValues(appends);
+  }
+
+  for (var m = 0; m < mutationIds.length; m++) rememberMutation(mutationIds[m]);
+  return results;
 }
 
 function syncAll(data, authUser) {
@@ -1036,7 +1355,7 @@ function syncAll(data, authUser) {
 
 function replaceSheetTable(sheetName, items, idKey, authUser) {
   var sheet = ensureSheetWithSchema(sheetName);
-  var headers = SCHEMAS[sheetName];
+  var headers = _headers[sheetName] || SCHEMAS[sheetName];
   sheet.clearContents();
   sheet.appendRow(headers);
   formatBrandHeader(sheet, headers.length);
@@ -1057,11 +1376,12 @@ function replaceSheetTable(sheetName, items, idKey, authUser) {
         else if (h === 'CreatedBy' && authUser) val = authUser.email || authUser.uid;
         else val = '';
       }
-      row.push(sanitizeCellValue(val));
+      row.push(sanitizeSheetValue_(h, val));
     }
     batch.push(row);
   }
 
+  formatTextFields_(sheet, headers, 2, batch.length);
   sheet.getRange(2, 1, batch.length, headers.length).setValues(batch);
 }
 
@@ -1083,11 +1403,9 @@ function setup() {
       created.push(name);
     }
 
-    var headers = SCHEMAS[name];
-    if (headers && headers.length > 0) {
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      formatBrandHeader(sheet, headers.length);
-    }
+    sheet = ensureSheetWithSchema(name);
+    var headers = _headers[name] || SCHEMAS[name] || [];
+    formatExistingTextFields_(sheet, headers);
   }
 
   // Remove default empty 'Sheet1' if exists
@@ -1111,20 +1429,44 @@ function ensureSheetWithSchema(name) {
   }
 
   var headers = SCHEMAS[name] || ['ID', 'Data', 'CreatedAt'];
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(headers);
-    formatBrandHeader(sheet, headers.length);
-  } else {
-    var existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    var missingHeaders = headers.filter(function(header) { return existingHeaders.indexOf(header) === -1; });
-    if (missingHeaders.length) {
-      var firstNewColumn = sheet.getLastColumn() + 1;
-      sheet.getRange(1, firstNewColumn, 1, missingHeaders.length).setValues([missingHeaders]);
-      formatBrandHeader(sheet, firstNewColumn + missingHeaders.length - 1);
+  if (!_schemaChecked[name]) {
+    if (sheet.getLastRow() === 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      formatBrandHeader(sheet, headers.length);
+      _headers[name] = headers.slice();
+    } else {
+      var existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      var missingHeaders = headers.filter(function(header) { return existingHeaders.indexOf(header) === -1; });
+      if (missingHeaders.length) {
+        var firstNewColumn = sheet.getLastColumn() + 1;
+        sheet.getRange(1, firstNewColumn, 1, missingHeaders.length).setValues([missingHeaders]);
+        formatBrandHeader(sheet, firstNewColumn + missingHeaders.length - 1);
+        existingHeaders = existingHeaders.concat(missingHeaders);
+      }
+      _headers[name] = existingHeaders;
     }
+    _schemaChecked[name] = true;
   }
 
+  formatExistingTextFields_(sheet, _headers[name] || headers);
   return sheet;
+}
+
+function formatExistingTextFields_(sheet, headers) {
+  var name = sheet.getName();
+  if (_textFormatChecked[name]) return;
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) formatTextFields_(sheet, headers, 2, lastRow - 1);
+  _textFormatChecked[name] = true;
+}
+
+function formatTextFields_(sheet, headers, firstRow, rowCount) {
+  if (rowCount <= 0) return;
+  for (var i = 0; i < headers.length; i++) {
+    if (TEXT_FORMAT_HEADERS.indexOf(headers[i]) !== -1) {
+      sheet.getRange(firstRow, i + 1, rowCount, 1).setNumberFormat('@');
+    }
+  }
 }
 
 function formatBrandHeader(sheet, columnCount) {

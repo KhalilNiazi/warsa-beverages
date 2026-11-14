@@ -20,19 +20,19 @@ export function OrderBookers() {
   const [editingDeliveryMan, setEditingDeliveryMan] = useState<Partial<DeliveryMan>>({});
   const [deliveryManToDelete, setDeliveryManToDelete] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const loadData = () => {
     setObs(getOrderBookers());
     setDeliveryMen(getDeliveryMen());
     setIsRefreshing(true);
-    try {
-      const [orderBookersData, deliveryMenData] = await Promise.all([fetchOrderBookers(), fetchDeliveryMen()]);
-      setObs(orderBookersData);
-      setDeliveryMen(deliveryMenData);
-    } catch (error) {
-      console.error('[OrderBookers] Could not refresh lists:', error);
-    } finally {
-      setIsRefreshing(false);
-    }
+    void Promise.all([fetchOrderBookers(true), fetchDeliveryMen(true)])
+      .then(([orderBookersData, deliveryMenData]) => {
+        setObs(orderBookersData);
+        setDeliveryMen(deliveryMenData);
+      })
+      .catch(error => {
+        console.error('[OrderBookers] Could not refresh lists:', error);
+      })
+      .finally(() => setIsRefreshing(false));
   };
 
   useEffect(() => {
@@ -41,8 +41,16 @@ export function OrderBookers() {
       setObs(getOrderBookers());
       setDeliveryMen(getDeliveryMen());
     };
+    const handlePullFinished = () => {
+      handleDataRefreshed();
+      setIsRefreshing(false);
+    };
     window.addEventListener('warsa_data_refreshed', handleDataRefreshed);
-    return () => window.removeEventListener('warsa_data_refreshed', handleDataRefreshed);
+    window.addEventListener('warsa_pull_finished', handlePullFinished);
+    return () => {
+      window.removeEventListener('warsa_data_refreshed', handleDataRefreshed);
+      window.removeEventListener('warsa_pull_finished', handlePullFinished);
+    };
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
