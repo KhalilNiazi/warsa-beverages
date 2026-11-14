@@ -66,6 +66,7 @@ export function Sales() {
   const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [search, setSearch] = useState('');
+  const [ordersDate, setOrdersDate] = useState('');
   
   const [printSale, setPrintSale] = useState<SaleRecord | null>(null);
   const [invoiceToPrint, setInvoiceToPrint] = useState<SaleRecord | null>(null);
@@ -492,6 +493,8 @@ export function Sales() {
   const scopedSales = filterSalesForUser(sales, currentUser);
 
   const filteredSales = scopedSales.filter(sale => {
+    if (ordersDate && String(sale.Date || '').slice(0, 10) !== ordersDate) return false;
+
     if (salesmanBookerFilter !== 'ALL') {
       const bBy = sale.BookedBy || sale.OrderBooker || '';
       if (bBy.toLowerCase() !== salesmanBookerFilter.toLowerCase()) return false;
@@ -1161,6 +1164,22 @@ export function Sales() {
                 <p className="text-xs text-gray-500">Track delivery acceptance and update drop outcomes</p>
               </div>
               <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="orders-date-filter" className="text-xs font-semibold text-gray-500 whitespace-nowrap">Order date</label>
+                  <Input
+                    id="orders-date-filter"
+                    type="date"
+                    value={ordersDate}
+                    onChange={(e) => setOrdersDate(e.target.value)}
+                    className="h-9 w-36 text-xs"
+                    aria-label="Filter orders by date"
+                  />
+                  {ordersDate && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setOrdersDate('')} className="h-9 px-2 text-xs">
+                      All dates
+                    </Button>
+                  )}
+                </div>
                 {!isBooker && orderBookersList.length > 0 && (
                   <select
                     value={salesmanBookerFilter}

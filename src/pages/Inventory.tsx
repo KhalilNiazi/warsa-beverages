@@ -47,6 +47,7 @@ export function Inventory() {
   const [inwardRecords, setInwardRecords] = useState<StockInwardRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [historyDate, setHistoryDate] = useState('');
   const handlePrintStock = () => {
     const print = () => {
       const cleanup = () => document.body.classList.remove('warsa-print-stock-list');
@@ -194,7 +195,12 @@ export function Inventory() {
     item.SKU.toLowerCase().includes(search.toLowerCase())
   );
 
+  const filteredInwardRecords = inwardRecords.filter(record =>
+    !historyDate || String(record.Date || '').slice(0, 10) === historyDate
+  );
+
   const filteredMovements = movements.filter(m => {
+    if (historyDate && String(m.Date || '').slice(0, 10) !== historyDate) return false;
     if (movementFilter !== 'ALL' && m.Type !== movementFilter) return false;
     if (search && !m.ProductName.toLowerCase().includes(search.toLowerCase()) && !m.User.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
@@ -318,6 +324,9 @@ export function Inventory() {
       </div>
 
       {/* Tabs */}
+      <p className="text-xs text-gray-500">
+        Historical tabs can be filtered by date. Floor stock and the summary cards show current live balances.
+      </p>
       <div className="flex border-b border-gray-200 gap-2 overflow-x-auto">
         <button
           onClick={() => setActiveTab('floor')}
@@ -483,13 +492,28 @@ export function Inventory() {
       {/* TAB 2: STOCK INWARD HISTORY */}
       {activeTab === 'inward' && (
         <Card className="bg-white border-gray-200">
-          <CardHeader className="p-4 border-b border-gray-100 flex items-center justify-between">
+          <CardHeader className="p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <CardTitle className="text-base font-bold text-gray-900">Stock Inward Receipts (Warehouse Intake)</CardTitle>
-            {canEdit && (
-              <Button size="sm" onClick={() => setIsInwardModalOpen(true)} className="gap-1.5 bg-red-600 hover:bg-red-700 text-white font-bold">
-                <Plus className="h-4 w-4" /> New Inward Entry
-              </Button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor="warehouse-history-date" className="text-xs font-semibold text-gray-500">Date</label>
+              <Input
+                id="warehouse-history-date"
+                type="date"
+                value={historyDate}
+                onChange={e => setHistoryDate(e.target.value)}
+                className="h-9 w-36 text-xs"
+              />
+              {historyDate && (
+                <Button type="button" size="sm" variant="ghost" onClick={() => setHistoryDate('')} className="h-9 px-2 text-xs">
+                  All dates
+                </Button>
+              )}
+              {canEdit && (
+                <Button size="sm" onClick={() => setIsInwardModalOpen(true)} className="gap-1.5 bg-red-600 hover:bg-red-700 text-white font-bold">
+                  <Plus className="h-4 w-4" /> New Inward Entry
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -505,14 +529,14 @@ export function Inventory() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-medium">
-                {inwardRecords.length === 0 ? (
+                {filteredInwardRecords.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-8 text-center text-gray-400">
-                      No stock inward entries recorded yet.
+                      No stock inward entries found{historyDate ? ` for ${historyDate}` : ''}.
                     </td>
                   </tr>
                 ) : (
-                  inwardRecords.map(rec => (
+                  filteredInwardRecords.map(rec => (
                     <tr key={rec.ID} className="hover:bg-gray-50">
                       <td className="p-3.5 text-xs text-gray-600">
                         {rec.Date}
@@ -550,6 +574,19 @@ export function Inventory() {
           <CardHeader className="p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-gray-400" />
+              <label htmlFor="warehouse-movement-date" className="text-xs font-semibold text-gray-500">Date</label>
+              <Input
+                id="warehouse-movement-date"
+                type="date"
+                value={historyDate}
+                onChange={e => setHistoryDate(e.target.value)}
+                className="h-9 w-36 text-xs"
+              />
+              {historyDate && (
+                <Button type="button" size="sm" variant="ghost" onClick={() => setHistoryDate('')} className="h-9 px-2 text-xs">
+                  All dates
+                </Button>
+              )}
               <select
                 value={movementFilter}
                 onChange={(e) => setMovementFilter(e.target.value)}
@@ -587,7 +624,7 @@ export function Inventory() {
                 {filteredMovements.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="p-8 text-center text-gray-400">
-                      No stock movement records found for this filter.
+                      No stock movement records found for this filter{historyDate ? ` on ${historyDate}` : ''}.
                     </td>
                   </tr>
                 ) : (

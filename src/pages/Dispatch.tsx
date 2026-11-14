@@ -338,6 +338,9 @@ export function Dispatch() {
       RejectedSalesCount: loadSales.filter(s => s.DeliveryStatus === 'REJECTED').length,
     };
   });
+  const dateLoads = enrichedLoads.filter(load =>
+    String(load.Date || '').slice(0, 10) === selectedDate
+  );
 
   const totalFloorStock = inventory.reduce((a, b) => a + b.Quantity, 0);
   const totalInTransit = inventory.reduce((a, b) => a + (b.InTransitQuantity || 0), 0);
@@ -476,14 +479,14 @@ export function Dispatch() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <Truck className="h-5 w-5 text-red-600" /> Active Vehicle Dispatch Loads ({enrichedLoads.length})
+            <Truck className="h-5 w-5 text-red-600" /> Vehicle Dispatch Loads for {format(parseISO(selectedDate), 'dd MMM yyyy')} ({dateLoads.length})
           </h2>
           <span className="text-xs text-gray-500">
             Deducts from Floor Stock upon dispatch
           </span>
         </div>
 
-        {enrichedLoads.length === 0 ? (
+        {dateLoads.length === 0 ? (
           <Card className="p-8 text-center bg-white border-dashed">
             <Truck className="h-10 w-10 text-gray-300 mx-auto mb-2" />
             <h3 className="text-sm font-bold text-gray-700">No active dispatch loads for {selectedDate}</h3>
@@ -494,7 +497,7 @@ export function Dispatch() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 gap-4">
-            {enrichedLoads.map(load => (
+            {dateLoads.map(load => (
               <Card key={load.ID} className="bg-white border-gray-200 overflow-hidden shadow-sm">
                 <div className="p-4 sm:p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
                   <div className="space-y-1">
