@@ -103,10 +103,19 @@ const SHEET_CSS = `
 .dinv-foot{text-align:center;margin-top:14px;font-size:10px}
 .dinv-print-only{position:fixed;left:-99999px;top:0}
 @media print{
-  @page{size:A4 landscape;margin:0}
+  @page{size:A4 portrait;margin:5mm}
+  html,body{width:100% !important;height:auto !important;margin:0 !important;overflow:visible !important}
   body.dinv-printing > *:not(.dinv-print-only){display:none !important}
-  body.dinv-printing .dinv-print-only{position:static !important;left:auto !important;display:block !important}
-  .dinv-sheet{width:297mm !important;min-height:210mm !important;height:auto !important;page-break-after:avoid}
+  body.dinv-printing .dinv-print-only{position:static !important;left:auto !important;display:block !important;width:100% !important;height:auto !important;overflow:visible !important}
+  body.dinv-printing .dinv-sheet{width:100% !important;max-width:100% !important;min-height:0 !important;height:auto !important;padding:8mm !important;font-size:8pt !important;line-height:1.25 !important;overflow:visible !important;page-break-after:auto !important;break-after:auto !important}
+  .dinv-frame{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;font-size:7.5pt}
+  .dinv-frame b{min-width:0}
+  .dinv-items{table-layout:fixed;font-size:7.5pt}
+  .dinv-items th,.dinv-items td{padding:3px 2px;overflow-wrap:anywhere;word-break:break-word}
+  .dinv-sum{max-width:100%;width:260px;break-inside:avoid;page-break-inside:avoid}
+  .dinv-note,.dinv-words,.dinv-sign,.dinv-foot{break-inside:avoid;page-break-inside:avoid}
+  .dinv-items tr{break-inside:avoid;page-break-inside:avoid}
+  .dinv-items thead{display:table-header-group}
 }
 `;
 
