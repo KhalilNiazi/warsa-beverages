@@ -47,33 +47,27 @@ function numberToWords(num: number): string {
 }
 
 const SHEET_CSS = `
-.dinv-sheet{width:${A4_W}px;height:${A4_H}px;background:#fff;color:#000;box-sizing:border-box;padding:40px 44px;
-  font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.35;position:relative;display:flex;flex-direction:column}
+.dinv-sheet{width:${A4_W}px;height:${A4_H}px;background:#fff;color:#000;box-sizing:border-box;padding:45px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.45;display:flex;flex-direction:column}
 .dinv-sheet *{box-sizing:border-box;color:#000;background:transparent}
-.dinv-head{text-align:center;border-bottom:2px solid #000;padding-bottom:10px}
-.dinv-co{font-size:24px;font-weight:700;letter-spacing:1px}
-.dinv-sub{font-size:11px;margin-top:2px}
-.dinv-title{display:flex;justify-content:space-between;align-items:center;margin:12px 0 8px}
-.dinv-title h1{font-size:16px;margin:0;letter-spacing:1px}
-.dinv-copy{border:1px solid #000;padding:2px 10px;font-weight:700;font-size:11px}
-.dinv-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #000}
-.dinv-grid>div{padding:6px 8px;border-bottom:1px solid #000}
-.dinv-grid>div:nth-child(odd){border-right:1px solid #000}
-.dinv-grid>div:nth-last-child(-n+2){border-bottom:none}
-.dinv-k{font-weight:700;display:inline-block;min-width:110px}
-.dinv-table{width:100%;border-collapse:collapse;margin-top:14px}
-.dinv-table th,.dinv-table td{border:1px solid #000;padding:7px 8px}
-.dinv-table th{font-weight:700;text-align:center;border-bottom:2px solid #000}
-.dinv-table td.c{text-align:center}.dinv-table td.r{text-align:right}
-.dinv-bottom{display:flex;gap:16px;margin-top:14px;align-items:flex-start}
-.dinv-words{flex:1;border:1px solid #000;padding:8px;min-height:92px}
-.dinv-tot{width:290px;border-collapse:collapse}
-.dinv-tot td{border:1px solid #000;padding:6px 8px}
-.dinv-tot td:first-child{font-weight:700}.dinv-tot td:last-child{text-align:right}
-.dinv-tot tr.g td{font-weight:700;font-size:14px;border-top:2px solid #000}
-.dinv-sign{display:flex;justify-content:space-between;margin-top:auto;padding-top:60px}
-.dinv-sign div{width:200px;border-top:1px solid #000;text-align:center;padding-top:4px;font-weight:700}
-.dinv-foot{text-align:center;border-top:2px solid #000;margin-top:18px;padding-top:8px;font-size:11px}
+.dinv-hd{display:flex;justify-content:space-between;align-items:flex-start}
+.dinv-co{font-size:22px;font-weight:700}.dinv-hd p{margin:2px 0;font-size:11px}
+.dinv-rt{text-align:right;font-size:11px}.dinv-rt b{font-size:16px;letter-spacing:2px}
+.dinv-frame{border:1px solid #000;border-radius:6px;margin-top:8px;padding:8px 10px;display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:14px}
+.dinv-frame div div{padding:1px 0}.dinv-frame b{display:inline-block;min-width:84px}
+.dinv-items{width:100%;border-collapse:collapse;margin-top:10px;border-top:1px solid #000;border-bottom:1px solid #000}
+.dinv-items th{text-align:left;padding:6px;border-bottom:1px solid #000}
+.dinv-items td{padding:6px;border-bottom:1px solid #000}
+.dinv-items .r{text-align:right}.dinv-items .c{text-align:center}
+.dinv-items .ex td{font-weight:700;font-style:italic;padding:3px 6px;border-bottom:0}
+.dinv-items .t td{font-weight:700}.dinv-items .tl{text-align:right}
+.dinv-sum{width:340px;border-collapse:collapse;margin:12px 0 0 auto}
+.dinv-sum td{padding:3px 6px}.dinv-sum td:last-child{text-align:right;width:120px}
+.dinv-sum .g td{font-weight:700;border-top:1px solid #000;padding-top:8px}
+.dinv-words{margin-top:10px;font-size:11px}
+.dinv-sign{display:flex;justify-content:space-between;margin-top:auto;padding-top:70px}
+.dinv-sign div{width:160px;border-top:1px solid #000;text-align:center;padding-top:4px;font-weight:700}
+.dinv-note{margin-top:12px;border:1px solid #000;padding:8px;font-size:11px;white-space:pre-wrap}
+.dinv-foot{text-align:center;margin-top:14px;font-size:10px}
 .dinv-print-only{position:fixed;left:-99999px;top:0}
 @media print{
   @page{size:A4 portrait;margin:0}
@@ -88,6 +82,22 @@ export function DigitalInvoiceModal({ sale, outlets, isOpen, onClose }: DigitalI
   const [copy, setCopy] = useState<'ORIGINAL' | 'CUSTOMER'>('ORIGINAL');
   const [scale, setScale] = useState(0.7);
   const [busy, setBusy] = useState(false);
+  const [showCustom, setShowCustom] = useState(false);
+  const [customLabel, setCustomLabel] = useState<string>(() => {
+    try { return localStorage.getItem('warsa_inv_custom_label') || 'Remarks'; } catch { return 'Remarks'; }
+  });
+  const [customText, setCustomText] = useState<string>(() => {
+    try { return localStorage.getItem('warsa_inv_custom_text') || ''; } catch { return ''; }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('warsa_inv_custom_label', customLabel);
+      localStorage.setItem('warsa_inv_custom_text', customText);
+    } catch { /* storage unavailable */ }
+  }, [customLabel, customText]);
+  const [taxRate, setTaxRate] = useState<number>(() => {
+    try { const r = Number((getSettings() as any).invoiceTaxRate); return [0, 16, 18].includes(r) ? r : 0; } catch { return 0; }
+  });
 
   useEffect(() => {
     const update = () => {
@@ -106,6 +116,7 @@ export function DigitalInvoiceModal({ sale, outlets, isOpen, onClose }: DigitalI
   const companyName = settings.companyName || 'KFM BEVERAGES (WARSA)';
   const companyAddress = settings.companyAddress || '40-1 Saddar Bazar, Dhaka Road, Lahore Cantt';
   const companyPhone = settings.companyPhone || '0314-1421965';
+  const companyNTN = settings.companyNTN || '';
 
   const outlet = outlets.find(o =>
     o.Name === sale.OutletName || (sale.OutletCode && o.Code === sale.OutletCode) || o.Address === sale.Address
@@ -115,93 +126,122 @@ export function DigitalInvoiceModal({ sale, outlets, isOpen, onClose }: DigitalI
   const items = buildStandardInvoicePrintItems(sale, outlet);
 
   let dateText = sale.Date || '';
-  try { if (sale.Date) dateText = format(new Date(sale.Date), 'dd/MM/yyyy HH:mm'); } catch { /* keep raw */ }
+  try { if (sale.Date) dateText = format(new Date(sale.Date), 'dd-MMM-yyyy'); } catch { /* keep raw */ }
 
-  const status = String(sale.DeliveryStatus || sale.Status || 'BOOKED').toUpperCase();
-  const grand = Number(sale.GrandTotal) || 0;
+  const discount = Number(sale.Discount) || 0;
+  const shown = items.filter(it => Number(it.qty) > 0);
+  const base = (shown.length ? shown : items.slice(0, 1)).slice(0, 4);
+  const grossOf = (it: any) => (typeof it.price === 'number' ? Number(it.qty) * it.price : 0);
+  const totalGross = base.reduce((n, it) => n + grossOf(it), 0);
+  const rows = base.map(it => {
+    const gross = grossOf(it);
+    const offer = totalGross > 0 ? Math.round((discount * gross) / totalGross) : 0;
+    return { it, gross, offer, net: gross - offer };
+  });
+  const totalQty = rows.reduce((n, r) => n + Number(r.it.qty || 0), 0);
+  const totalOffer = rows.reduce((n, r) => n + r.offer, 0);
+  const net = totalGross - totalOffer;
+  const taxAmount = Math.round(net * taxRate) / 100;
+  const grand = net + taxAmount;
+  const opening = Number(outlet?.OpeningBalance) || 0;
+  const closing = opening + grand;
+  const fmt = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const skuFor = (d: string) => (d.includes('1500') ? 'WAR-1.5L' : d.includes('19') ? 'WAR-19L' : 'WAR-500ML');
+  const full = (d: string) => (d.startsWith('PROMO') ? 'Promo 500ml (Free)' : 'Warsa Bottled Water ' + d.replace('ML', 'ml'));
+  const customerNTN = (outlet as any)?.NTN || (outlet as any)?.CustomerNTN || '';
 
   const Sheet = () => (
     <div className="dinv-sheet">
-      <div className="dinv-head">
-        <div className="dinv-co">{companyName.toUpperCase()}</div>
-        <div className="dinv-sub">Bottled Drinking Water &bull; Distribution</div>
-        <div className="dinv-sub">{companyAddress} &bull; Tel: {companyPhone}</div>
+      <div className="dinv-hd">
+        <div>
+          <div className="dinv-co">{companyName.toUpperCase()}</div>
+          <p>{companyAddress} &bull; Tel: {companyPhone} &bull; NTN: {companyNTN || '—'}</p>
+        </div>
+        <div className="dinv-rt">
+          <b>{taxRate > 0 ? 'TAX INVOICE' : 'INVOICE'}</b><br />
+          {outlet?.CustomerType || 'Retail'}<br />
+          No. of Items: {rows.length}<br />
+          {copy === 'CUSTOMER' ? 'CUSTOMER COPY' : 'ORIGINAL COPY'}
+        </div>
       </div>
 
-      <div className="dinv-title">
-        <h1>SALES INVOICE &ndash; BOOKED ORDER</h1>
-        <span className="dinv-copy">{copy === 'CUSTOMER' ? 'CUSTOMER COPY' : 'ORIGINAL COPY'}</span>
+      <div className="dinv-frame">
+        <div>
+          <div><b>Buyer&rsquo;s Code:</b> {outletCode}</div>
+          <div><b>Buyer&rsquo;s Name:</b> {sale.OutletName}</div>
+          <div><b>Address:</b> {sale.Address || outlet?.Address || '-'}</div>
+          <div><b>NTN/CNIC #:</b> {customerNTN || '—'}</div>
+          <div><b>STRN #:</b> {(outlet as any)?.STRN || ''}</div>
+          <div><b>Mobile No:</b> {sale.ContactNumber || outlet?.ContactNumber || '-'}</div>
+        </div>
+        <div>
+          <div><b>Section:</b> {sale.Route || '-'}</div>
+          <div><b>Order Booker:</b> {sale.BookedBy || sale.OrderBooker || outlet?.OB || '-'}</div>
+          <div><b>Delivery Man:</b> {sale.DriverName || '-'}</div>
+        </div>
+        <div>
+          <div><b>Invoice No:</b> {sale.ID}</div>
+          <div><b>Invoice Date:</b> {dateText}</div>
+          <div><b>Delivery Date:</b> {dateText}</div>
+        </div>
       </div>
 
-      <div className="dinv-grid">
-        <div><span className="dinv-k">Invoice #:</span>{sale.ID}</div>
-        <div><span className="dinv-k">Date:</span>{dateText}</div>
-        <div><span className="dinv-k">Outlet Name:</span>{sale.OutletName}</div>
-        <div><span className="dinv-k">Outlet Code:</span>{outletCode}</div>
-        <div><span className="dinv-k">Address:</span>{sale.Address || outlet?.Address || '-'}</div>
-        <div><span className="dinv-k">Route:</span>{sale.Route || '-'}</div>
-        <div><span className="dinv-k">Owner:</span>{sale.OwnerName || outlet?.OwnerName || '-'}</div>
-        <div><span className="dinv-k">Contact:</span>{sale.ContactNumber || outlet?.ContactNumber || '-'}</div>
-        <div><span className="dinv-k">Order Booker:</span>{sale.BookedBy || sale.OrderBooker || outlet?.OB || '-'}</div>
-        <div><span className="dinv-k">Status:</span>{status}</div>
-        <div><span className="dinv-k">Payment:</span>{sale.PaymentMethod || 'Credit'}</div>
-        <div><span className="dinv-k">Customer Balance:</span>Rs. {money(balance)}</div>
-      </div>
-
-      <table className="dinv-table">
+      <table className="dinv-items">
         <thead>
           <tr>
-            <th style={{ width: 50 }}>#</th>
+            <th style={{ width: 34 }}>Sr.</th>
             <th>Description</th>
-            <th style={{ width: 110 }}>Qty (Cases)</th>
-            <th style={{ width: 120 }}>Rate</th>
-            <th style={{ width: 140 }}>Amount</th>
+            <th className="c" style={{ width: 48 }}>Qty</th>
+            <th className="r" style={{ width: 70 }}>Trade Price</th>
+            <th className="r" style={{ width: 82 }}>Gross Value</th>
+            <th className="r" style={{ width: 82 }}>Trade Offer</th>
+            <th className="r" style={{ width: 92 }}>Net Amount</th>
           </tr>
         </thead>
         <tbody>
-          {items.slice(0, 4).map((it, i) => (
+          <tr className="ex"><td colSpan={7}>{taxRate > 0 ? `Taxable @ ${taxRate}%` : 'Exempted'}</td></tr>
+          {rows.map((r, i) => (
             <tr key={i}>
-              <td className="c">{it.num}</td>
-              <td>{it.desc}</td>
-              <td className="c">{money(it.qty)}</td>
-              <td className="r">{typeof it.price === 'number' ? money(it.price) : it.price}</td>
-              <td className="r">{typeof it.amount === 'number' ? money(it.amount) : it.amount}</td>
+              <td>{i + 1}</td>
+              <td>{skuFor(String(r.it.desc))} - {full(String(r.it.desc))}</td>
+              <td className="c">{money(r.it.qty)}</td>
+              <td className="r">{typeof r.it.price === 'number' ? money(r.it.price) : r.it.price}</td>
+              <td className="r">{money(r.gross)}</td>
+              <td className="r">{fmt(r.offer)}</td>
+              <td className="r">{fmt(r.net)}</td>
             </tr>
           ))}
-          <tr>
-            <td colSpan={2} style={{ fontWeight: 700 }}>TOTAL CASES</td>
-            <td className="c" style={{ fontWeight: 700 }}>{money(sale.TotalCases)}</td>
-            <td colSpan={2}></td>
-          </tr>
+          {['Sub Total:', 'Grand Total:'].map(label => (
+            <tr key={label} className="t">
+              <td></td><td className="tl">{label}</td>
+              <td className="c">{money(totalQty)}</td><td></td>
+              <td className="r">{money(totalGross)}</td>
+              <td className="r">{fmt(totalOffer)}</td>
+              <td className="r">{fmt(net)}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
 
-      <div className="dinv-bottom">
-        <div className="dinv-words">
-          <div style={{ fontWeight: 700, marginBottom: 4 }}>Amount in words:</div>
-          <div>Rupees {numberToWords(grand)} Only</div>
-          {sale.HasPromo && sale.PromoDescription ? (
-            <div style={{ marginTop: 8 }}><b>Promo:</b> {sale.PromoDescription}</div>
-          ) : null}
-        </div>
-        <table className="dinv-tot">
-          <tbody>
-            <tr><td>Total Amount</td><td>Rs. {money(sale.TotalAmount)}</td></tr>
-            <tr><td>Discount</td><td>Rs. {money(sale.Discount || 0)}</td></tr>
-            <tr className="g"><td>GRAND TOTAL</td><td>Rs. {money(sale.GrandTotal)}</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <table className="dinv-sum">
+        <tbody>
+          <tr><td>Less Additional Discount</td><td>0.00</td></tr>
+          <tr><td>GST {taxRate.toFixed(2)} %</td><td>{fmt(taxAmount)}</td></tr>
+          <tr><td>Advance Tax 0.00 %</td><td>0.00</td></tr>
+          <tr className="g"><td>Net Receivable</td><td>{fmt(grand)}</td></tr>
+          <tr><td style={{ paddingTop: 14 }}>Opening Balance:</td><td style={{ paddingTop: 14 }}>{fmt(opening)} DR</td></tr>
+          <tr><td>This Invoice Value:</td><td>{fmt(grand)}</td></tr>
+          <tr className="g"><td>Closing Balance:</td><td>{fmt(closing)} DR</td></tr>
+        </tbody>
+      </table>
+      <div className="dinv-words"><b>Amount in words:</b> Rupees {numberToWords(grand)} Only</div>
 
-      <div className="dinv-sign">
-        <div>Customer Signature</div>
-        <div>Order Booker / Delivered By</div>
-      </div>
+      {customText.trim() && (
+        <div className="dinv-note"><b>{customLabel.trim() || 'Remarks'}:</b> {customText.trim()}</div>
+      )}
 
-      <div className="dinv-foot">
-        Thank you for your business! &bull; WhatsApp: 03415956432 &bull; Helpline: 03413475816<br />
-        This is a computer generated invoice.
-      </div>
+      <div className="dinv-sign"><div>Prepared By</div><div>Checked By</div><div>Authorized By</div></div>
+      <div className="dinv-foot">Computer generated invoice. Goods once sold will not be taken back.</div>
     </div>
   );
 
@@ -236,7 +276,7 @@ export function DigitalInvoiceModal({ sale, outlets, isOpen, onClose }: DigitalI
         isOpen={isOpen}
         onClose={onClose}
         title={`Invoice #${sale.ID}`}
-        subtitle="Digital A4 invoice (black & white)"
+        subtitle="Professional A4 invoice (black & white)"
         size="full"
       >
         <style dangerouslySetInnerHTML={{ __html: SHEET_CSS }} />
@@ -254,7 +294,15 @@ export function DigitalInvoiceModal({ sale, outlets, isOpen, onClose }: DigitalI
                 </button>
               ))}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              <Button variant="outline" size="sm" onClick={() => setShowCustom(v => !v)} className="text-xs font-bold">
+                {showCustom ? 'Hide Custom Text' : 'Add Custom Text'}
+              </Button>
+              <label className="text-xs font-bold text-slate-700">Tax
+                <select value={taxRate} onChange={e => setTaxRate(Number(e.target.value))} className="ml-1 border border-slate-300 rounded px-2 py-1 text-xs bg-white">
+                  <option value={0}>0%</option><option value={16}>16%</option><option value={18}>18%</option>
+                </select>
+              </label>
               <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={busy} className="gap-1.5 text-xs font-bold">
                 <Download className="h-3.5 w-3.5" /> {busy ? 'Preparing...' : 'Download PDF'}
               </Button>
@@ -263,6 +311,28 @@ export function DigitalInvoiceModal({ sale, outlets, isOpen, onClose }: DigitalI
               </Button>
             </div>
           </div>
+
+          {showCustom && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <div className="sm:col-span-1">
+                  <label className="text-[11px] font-bold text-slate-700">Heading</label>
+                  <input value={customLabel} maxLength={30} onChange={e => setCustomLabel(e.target.value)}
+                    placeholder="Remarks" className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs" />
+                </div>
+                <div className="sm:col-span-3">
+                  <label className="text-[11px] font-bold text-slate-700">Your text (printed above the signatures)</label>
+                  <textarea value={customText} maxLength={400} rows={3} onChange={e => setCustomText(e.target.value)}
+                    placeholder="e.g. Bank: HBL, Account 1234... / Payment due in 7 days / Delivery note"
+                    className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs" />
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-slate-500">
+                <span>{customText.length}/400 &bull; Saved on this device for the next invoices. Leave empty to hide.</span>
+                <button type="button" onClick={() => setCustomText('')} className="font-bold text-slate-700 underline">Clear text</button>
+              </div>
+            </div>
+          )}
 
           <div className="overflow-auto bg-slate-200 rounded-xl p-3 flex justify-center">
             <div style={{ width: A4_W * scale, height: A4_H * scale }}>
