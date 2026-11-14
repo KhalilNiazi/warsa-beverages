@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
-import { fetchOrderBookers, saveOrderBooker, deleteOrderBooker, fetchDeliveryMen, saveDeliveryMan, deleteDeliveryMan, canModifyData } from '@/src/api';
+import { getOrderBookers, fetchOrderBookers, saveOrderBooker, deleteOrderBooker, getDeliveryMen, fetchDeliveryMen, saveDeliveryMan, deleteDeliveryMan, canModifyData } from '@/src/api';
 import { DeliveryMan, OrderBooker } from '@/src/types';
 import { User, Plus, Edit, Trash2 } from 'lucide-react';
 import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
@@ -10,9 +10,9 @@ import { ConfirmDialog } from '@/src/components/ui/confirm-dialog';
 
 export function OrderBookers() {
   const canEdit = canModifyData();
-  const [obs, setObs] = useState<OrderBooker[]>([]);
-  const [deliveryMen, setDeliveryMen] = useState<DeliveryMan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [obs, setObs] = useState<OrderBooker[]>(getOrderBookers);
+  const [deliveryMen, setDeliveryMen] = useState<DeliveryMan[]>(getDeliveryMen);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingOB, setEditingOB] = useState<Partial<OrderBooker>>({});
   const [obToDelete, setObToDelete] = useState<string | null>(null);
@@ -21,21 +21,25 @@ export function OrderBookers() {
   const [deliveryManToDelete, setDeliveryManToDelete] = useState<string | null>(null);
 
   const loadData = async () => {
-    setLoading(true);
+    setObs(getOrderBookers());
+    setDeliveryMen(getDeliveryMen());
+    setIsRefreshing(true);
     try {
       const [orderBookersData, deliveryMenData] = await Promise.all([fetchOrderBookers(), fetchDeliveryMen()]);
       setObs(orderBookersData);
       setDeliveryMen(deliveryMenData);
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error('[OrderBookers] Could not refresh lists:', error);
+    } finally {
+      setIsRefreshing(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     loadData();
     const handleDataRefreshed = () => {
-      loadData();
+      setObs(getOrderBookers());
+      setDeliveryMen(getDeliveryMen());
     };
     window.addEventListener('warsa_data_refreshed', handleDataRefreshed);
     return () => window.removeEventListener('warsa_data_refreshed', handleDataRefreshed);
@@ -48,14 +52,14 @@ export function OrderBookers() {
     await saveOrderBooker(editingOB as OrderBooker);
     setIsEditing(false);
     setEditingOB({});
-    loadData();
+    setObs(getOrderBookers());
   };
 
   const handleDelete = async () => {
     if (obToDelete) {
       await deleteOrderBooker(obToDelete);
       setObToDelete(null);
-      loadData();
+      setObs(getOrderBookers());
     }
   };
 
@@ -67,7 +71,7 @@ export function OrderBookers() {
       await saveDeliveryMan({ ...editingDeliveryMan, ID: editingDeliveryMan.ID || Date.now().toString(), Name: name });
       setIsEditingDeliveryMan(false);
       setEditingDeliveryMan({});
-      await loadData();
+      setDeliveryMen(getDeliveryMen());
     } catch (error) {
       console.error('[OrderBookers] Could not save delivery man:', error);
       alert(error instanceof Error ? error.message : 'Could not save delivery man.');
@@ -79,7 +83,7 @@ export function OrderBookers() {
     try {
       await deleteDeliveryMan(deliveryManToDelete);
       setDeliveryManToDelete(null);
-      await loadData();
+      setDeliveryMen(getDeliveryMen());
     } catch (error) {
       console.error('[OrderBookers] Could not delete delivery man:', error);
       alert(error instanceof Error ? error.message : 'Could not delete delivery man.');
@@ -148,14 +152,11 @@ export function OrderBookers() {
 
       <Card>
         <CardContent className="p-0">
-          {loading ? (
-            <div className="p-8 text-center text-gray-500">Loading order bookers...</div>
-          ) : (
-            <div className="flex flex-col divide-y divide-gray-100">
-              {obs.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">No order bookers found.</div>
-              ) : (
-                obs.map((ob) => (
+          <div className="flex flex-col divide-y divide-gray-100">
+            {obs.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">{isRefreshing ? 'Syncing order bookers...' : 'No order bookers found.'}</div>
+            ) : (
+              obs.map((ob) => (
                   <div key={ob.ID} className="p-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors">
                     <div className="flex gap-3 items-center">
                       <div className="bg-red-50 p-2 rounded-full flex-shrink-0">
@@ -178,9 +179,8 @@ export function OrderBookers() {
                     )}
                   </div>
                 ))
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </CardContent>
       </Card>
       <Card>
@@ -189,10 +189,8 @@ export function OrderBookers() {
           <p className="text-sm text-gray-500">Manage delivery-person names used by outlets, orders, and invoices. No contact number is required.</p>
         </CardHeader>
         <CardContent className="p-0">
-          {loading ? (
-            <div className="p-8 text-center text-gray-500">Loading delivery men...</div>
-          ) : deliveryMen.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">No delivery men found.</div>
+          {deliveryMen.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">{isRefreshing ? 'Syncing delivery men...' : 'No delivery men found.'}</div>
           ) : (
             <div className="flex flex-col divide-y divide-gray-100">
               {deliveryMen.map(person => (

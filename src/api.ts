@@ -2312,16 +2312,22 @@ export const deletePayment = async (id: string): Promise<void> => {
 // --- ORDER BOOKERS ---
 const MOCK_OBS_KEY = 'warsa_mock_obs_v3';
 
-export const fetchOrderBookers = async (forceRefresh: boolean = false): Promise<OrderBooker[]> => {
-  await ensureDataFetchedFromGoogleSheet(forceRefresh);
+export const getOrderBookers = (): OrderBooker[] => {
   const data = localStorage.getItem(MOCK_OBS_KEY);
   if (data) {
     try {
       const parsed = JSON.parse(data);
       if (Array.isArray(parsed)) return parsed;
-    } catch {}
+    } catch (error) {
+      console.error('[Order Bookers] Could not read cached order bookers:', error);
+    }
   }
   return [];
+};
+
+export const fetchOrderBookers = async (forceRefresh: boolean = false): Promise<OrderBooker[]> => {
+  await ensureDataFetchedFromGoogleSheet(forceRefresh);
+  return getOrderBookers();
 };
 
 export const saveOrderBooker = async (ob: OrderBooker): Promise<void> => {
@@ -2348,11 +2354,33 @@ export const deleteOrderBooker = async (id: string): Promise<void> => {
 
 // --- DELIVERY MEN ---
 const MOCK_DELIVERY_MEN_KEY = 'warsa_mock_delivery_men_v1';
+const DELETED_DELIVERY_MEN_KEY = 'warsa_deleted_delivery_man_names_v1';
 
 export const getDeliveryMen = (): DeliveryMan[] => {
   try {
     const data = JSON.parse(localStorage.getItem(MOCK_DELIVERY_MEN_KEY) || '[]');
-    return Array.isArray(data) ? data : [];
+    const stored = Array.isArray(data) ? data.filter((person): person is DeliveryMan =>
+      person && typeof person.ID === 'string' && typeof person.Name === 'string' && person.Name.trim().length > 0
+    ) : [];
+    const deletedData = JSON.parse(localStorage.getItem(DELETED_DELIVERY_MEN_KEY) || '[]');
+    const deletedNames = new Set<string>(
+      Array.isArray(deletedData) ? deletedData.filter((name): name is string => typeof name === 'string').map(name => name.trim().toLowerCase()) : []
+    );
+    const names = new Set(stored.map(person => person.Name.trim().toLowerCase()));
+    const legacyNames = [
+      ...getMockOutlets().map(outlet => outlet.DeliveryManName || ''),
+      ...getMockSales().map(sale => sale.DriverName || '')
+    ];
+    const legacy = legacyNames
+      .map(name => name.trim())
+      .filter(name => {
+        const key = name.toLowerCase();
+        if (!key || names.has(key) || deletedNames.has(key)) return false;
+        names.add(key);
+        return true;
+      })
+      .map(name => ({ ID: `legacy:${name.toLowerCase()}`, Name: name }));
+    return [...stored, ...legacy].filter(person => !deletedNames.has(person.Name.trim().toLowerCase()));
   } catch (error) {
     console.error('[Delivery Men] Could not read cached delivery men:', error);
     return [];
@@ -2361,9 +2389,7 @@ export const getDeliveryMen = (): DeliveryMan[] => {
 
 export const fetchDeliveryMen = async (forceRefresh: boolean = false): Promise<DeliveryMan[]> => {
   await ensureDataFetchedFromGoogleSheet(forceRefresh);
-  const data = getDeliveryMen();
-  await replaceStoreInIDB(STORES.DELIVERY_MEN, data).catch(() => {});
-  return data;
+  return getDeliveryMen();
 };
 
 export const saveDeliveryMan = async (deliveryMan: DeliveryMan): Promise<void> => {
@@ -2377,6 +2403,12 @@ export const saveDeliveryMan = async (deliveryMan: DeliveryMan): Promise<void> =
   const index = deliveryMen.findIndex(item => item.ID === savedDeliveryMan.ID);
   if (index >= 0) deliveryMen[index] = savedDeliveryMan;
   else deliveryMen.push(savedDeliveryMan);
+  const deletedNames = JSON.parse(localStorage.getItem(DELETED_DELIVERY_MEN_KEY) || '[]');
+  localStorage.setItem(DELETED_DELIVERY_MEN_KEY, JSON.stringify(
+    (Array.isArray(deletedNames) ? deletedNames : []).filter((name: unknown) =>
+      typeof name !== 'string' || name.trim().toLowerCase() !== savedDeliveryMan.Name.toLowerCase()
+    )
+  ));
   localStorage.setItem(MOCK_DELIVERY_MEN_KEY, JSON.stringify(deliveryMen));
   await replaceStoreInIDB(STORES.DELIVERY_MEN, deliveryMen);
   triggerCloudSync('saveDeliveryMan', savedDeliveryMan);
@@ -2385,7 +2417,16 @@ export const saveDeliveryMan = async (deliveryMan: DeliveryMan): Promise<void> =
 export const deleteDeliveryMan = async (id: string): Promise<void> => {
   assertCanModifyData('delete delivery men');
   const deliveryMen = await fetchDeliveryMen();
+  const deletedPerson = deliveryMen.find(item => item.ID === id);
   const updatedDeliveryMen = deliveryMen.filter(item => item.ID !== id);
+  if (deletedPerson) {
+    const deletedNames = JSON.parse(localStorage.getItem(DELETED_DELIVERY_MEN_KEY) || '[]');
+    const deletedNameSet = new Set<string>(
+      Array.isArray(deletedNames) ? deletedNames.filter((name): name is string => typeof name === 'string') : []
+    );
+    deletedNameSet.add(deletedPerson.Name.trim().toLowerCase());
+    localStorage.setItem(DELETED_DELIVERY_MEN_KEY, JSON.stringify(Array.from(deletedNameSet)));
+  }
   localStorage.setItem(MOCK_DELIVERY_MEN_KEY, JSON.stringify(updatedDeliveryMen));
   await replaceStoreInIDB(STORES.DELIVERY_MEN, updatedDeliveryMen);
   triggerCloudSync('deleteDeliveryMan', { ID: id });
@@ -3062,7 +3103,7 @@ export const pullAllDataFromGoogleSheet = async (customUrl?: string): Promise<{
   }
   if (Array.isArray(data.deliveryMen)) {
     localStorage.setItem(MOCK_DELIVERY_MEN_KEY, JSON.stringify(data.deliveryMen));
-    await replaceStoreInIDB(STORES.DELIVERY_MEN, data.deliveryMen);
+    await replaceStoreInIDB(STORES.DELIVERY_MEN, data.deliveryMen).catch(() => {});
     counts['DeliveryMen'] = data.deliveryMen.length;
   }
 
