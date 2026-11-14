@@ -21,8 +21,10 @@ interface DigitalInvoiceModalProps {
   onDeliveryManChange?: (sale: SaleRecord, name: string) => Promise<void>;
 }
 
-const A4_W = 1123; // px at 96dpi (297mm)
-const A4_H = 794; // px at 96dpi (210mm)
+const A4_W = 794; // px at 96dpi (210mm)
+const A4_H = 1123; // px at 96dpi (297mm)
+const A4_W_MM = 210;
+const A4_H_MM = 297;
 interface InvoiceTax {
   id: string;
   name: string;
@@ -102,11 +104,11 @@ const SHEET_CSS = `
 .dinv-foot{text-align:center;margin-top:14px;font-size:10px}
 .dinv-print-only{position:fixed;left:-99999px;top:0}
 @media print{
-  @page{size:A4 landscape;margin:0}
-  html,body{width:297mm !important;height:auto !important;margin:0 !important;padding:0 !important;overflow:visible !important}
+  @page{size:A4 portrait;margin:0}
+  html,body{width:210mm !important;height:auto !important;margin:0 !important;padding:0 !important;overflow:visible !important}
   body.dinv-printing > *:not(.dinv-print-only){display:none !important}
-  body.dinv-printing .dinv-print-only{position:static !important;left:auto !important;display:block !important;width:297mm !important;height:auto !important;overflow:visible !important}
-  body.dinv-printing .dinv-sheet{width:297mm !important;min-height:210mm !important;height:auto !important;page-break-after:avoid}
+  body.dinv-printing .dinv-print-only{position:static !important;left:auto !important;display:block !important;width:210mm !important;height:auto !important;overflow:visible !important}
+  body.dinv-printing .dinv-sheet{width:210mm !important;min-height:297mm !important;height:auto !important;page-break-after:avoid}
 }
 `;
 
@@ -197,14 +199,14 @@ export function DigitalInvoiceModal({
   });
 
   const createInvoicePdf = (canvas: HTMLCanvasElement) => {
-    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const margin = 4;
-    const maxWidth = 297 - margin * 2;
-    const maxHeight = 210 - margin * 2;
+    const maxWidth = A4_W_MM - margin * 2;
+    const maxHeight = A4_H_MM - margin * 2;
     const ratio = Math.min(maxWidth / canvas.width, maxHeight / canvas.height);
     const width = canvas.width * ratio;
     const height = canvas.height * ratio;
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', (297 - width) / 2, (210 - height) / 2, width, height);
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', (A4_W_MM - width) / 2, (A4_H_MM - height) / 2, width, height);
     return pdf;
   };
 
