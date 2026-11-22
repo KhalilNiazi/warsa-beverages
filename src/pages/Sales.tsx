@@ -1467,6 +1467,9 @@ export function Sales() {
         onClose={() => setInvoiceToPrint(null)}
         deliveryMen={deliveryMen}
         onDeliveryManChange={handleInvoiceDeliveryManChange}
+        onOutletUpdated={updatedOutlet => setOutlets(previous =>
+          previous.map(outlet => outlet.ID === updatedOutlet.ID ? updatedOutlet : outlet)
+        )}
       />
 
       <InvoicePrintModal

@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { ResponsiveDialog } from '@/src/components/ui/responsive-dialog';
 import { Button } from '@/src/components/ui/button';
 import { buildStandardInvoicePrintItems } from '@/src/utils/invoicePrintHelper';
-import { getSettings } from '@/src/api';
+import { getCurrentUser, getModulePermission, getSettings, saveOutlet } from '@/src/api';
 import { Printer, Download, MessageCircle } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
@@ -19,6 +19,7 @@ interface DigitalInvoiceModalProps {
   onExportComplete?: () => void;
   deliveryMen?: DeliveryMan[];
   onDeliveryManChange?: (sale: SaleRecord, name: string) => Promise<void>;
+  onOutletUpdated?: (outlet: Outlet) => void;
 }
 
 const A4_W = 794; // px at 96dpi (210mm)
@@ -123,7 +124,8 @@ export function DigitalInvoiceModal({
   exportFormat = null,
   onExportComplete,
   deliveryMen = [],
-  onDeliveryManChange
+  onDeliveryManChange,
+  onOutletUpdated
 }: DigitalInvoiceModalProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const [copy, setCopy] = useState<'ORIGINAL' | 'CUSTOMER'>('ORIGINAL');
@@ -133,9 +135,13 @@ export function DigitalInvoiceModal({
   const [showCustom, setShowCustom] = useState(false);
   const [showTaxEditor, setShowTaxEditor] = useState(false);
   const [showDeliveryEditor, setShowDeliveryEditor] = useState(false);
+  const [showCustomerTaxIdEditor, setShowCustomerTaxIdEditor] = useState(false);
   const [deliveryManName, setDeliveryManName] = useState(sale?.DriverName || '');
   const [isSavingDeliveryMan, setIsSavingDeliveryMan] = useState(false);
   const [deliverySaveError, setDeliverySaveError] = useState<string | null>(null);
+  const [customerNTN, setCustomerNTN] = useState('');
+  const [isSavingCustomerNTN, setIsSavingCustomerNTN] = useState(false);
+  const [customerNTNSaveError, setCustomerNTNSaveError] = useState<string | null>(null);
   const [taxes, setTaxes] = useState<InvoiceTax[]>(loadInvoiceTaxes);
   const [customLabel, setCustomLabel] = useState<string>(() => {
     try { return localStorage.getItem('warsa_inv_custom_label') || 'Remarks'; } catch { return 'Remarks'; }
@@ -153,6 +159,19 @@ export function DigitalInvoiceModal({
     setDeliveryManName(sale?.DriverName || '');
     setShowDeliveryEditor(false);
   }, [sale?.ID, sale?.DriverName]);
+
+  const outlet = sale ? outlets.find(o =>
+    (sale.OutletID && o.ID === sale.OutletID) ||
+    o.Name === sale.OutletName ||
+    (sale.OutletCode && o.Code === sale.OutletCode) ||
+    o.Address === sale.Address
+  ) : undefined;
+
+  useEffect(() => {
+    setCustomerNTN(outlet?.NTN || '');
+    setCustomerNTNSaveError(null);
+    setShowCustomerTaxIdEditor(false);
+  }, [sale?.ID, outlet?.ID, outlet?.NTN]);
 
   useEffect(() => {
     try {
@@ -250,12 +269,6 @@ export function DigitalInvoiceModal({
   const companyPhone = '03141421965';
   const companyNTN = settings.companyNTN || 'H039315';
 
-  const outlet = outlets.find(o =>
-    (sale.OutletID && o.ID === sale.OutletID) ||
-    o.Name === sale.OutletName ||
-    (sale.OutletCode && o.Code === sale.OutletCode) ||
-    o.Address === sale.Address
-  );
   const outletCode = outlet?.Code || sale.OutletCode || '-';
   const balance = outlet?.OpeningBalance !== undefined ? outlet.OpeningBalance : sale.GrandTotal;
   const items = buildStandardInvoicePrintItems(sale, inventory, outlet);
@@ -286,7 +299,24 @@ export function DigitalInvoiceModal({
   const opening = Number(outlet?.OpeningBalance) || 0;
   const closing = opening + grand;
   const fmt = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const customerNTN = outlet?.NTN || '';
+  const canEditCustomerNTN = getModulePermission(getCurrentUser(), 'outlets') === 'WRITE';
+  const handleSaveCustomerNTN = async () => {
+    if (!outlet || !canEditCustomerNTN) return;
+    setIsSavingCustomerNTN(true);
+    setCustomerNTNSaveError(null);
+    try {
+      const updatedOutlet = { ...outlet, NTN: customerNTN.trim() };
+      await saveOutlet(updatedOutlet);
+      onOutletUpdated?.(updatedOutlet);
+      setCustomerNTN(updatedOutlet.NTN || '');
+      setShowCustomerTaxIdEditor(false);
+    } catch (error) {
+      console.error('[DigitalInvoice] Could not save customer NTN/CNIC:', error);
+      setCustomerNTNSaveError(error instanceof Error ? error.message : 'Could not save customer NTN/CNIC.');
+    } finally {
+      setIsSavingCustomerNTN(false);
+    }
+  };
 
   const Sheet = () => (
     <div className="dinv-sheet">
@@ -308,7 +338,10 @@ export function DigitalInvoiceModal({
           <div><b>Buyer&rsquo;s Code:</b> {outletCode}</div>
           <div><b>Buyer&rsquo;s Name:</b> {sale.OutletName}</div>
           <div><b>Address:</b> {sale.Address || outlet?.Address || '-'}</div>
-          <div><b>NTN/CNIC #:</b> {customerNTN || '—'}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span><b>NTN/CNIC #:</b> {customerNTN || '—'}</span>
+            <span><b>Tax Amount:</b> {fmt(taxAmount)}</span>
+          </div>
           <div><b>STRN #:</b> {(outlet as any)?.STRN || ''}</div>
           <div><b>Mobile No:</b> {sale.ContactNumber || outlet?.ContactNumber || '-'}</div>
         </div>
@@ -547,6 +580,16 @@ export function DigitalInvoiceModal({
               <Button variant="outline" size="sm" onClick={() => setShowCustom(v => !v)} className="text-xs font-bold">
                 {showCustom ? 'Hide Custom Text' : 'Add Custom Text'}
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCustomerTaxIdEditor(v => !v)}
+                disabled={!canEditCustomerNTN}
+                title={!canEditCustomerNTN ? 'You need write permission for Shops & Customers to edit this number.' : undefined}
+                className="text-xs font-bold"
+              >
+                Edit Customer NTN/CNIC
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setShowDeliveryEditor(v => !v)} className="text-xs font-bold">
                 Edit Delivery Man
               </Button>
@@ -567,6 +610,32 @@ export function DigitalInvoiceModal({
               </Button>
             </div>
           </div>
+
+          {showCustomerTaxIdEditor && (
+            <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-end gap-2">
+              <div className="flex-1 min-w-56 space-y-1">
+                <label className="text-[11px] font-bold text-slate-700">Customer NTN / CNIC</label>
+                <input
+                  value={customerNTN}
+                  maxLength={32}
+                  disabled={!outlet || isSavingCustomerNTN}
+                  onChange={e => setCustomerNTN(e.target.value)}
+                  className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs disabled:bg-slate-100"
+                  placeholder="Enter NTN or CNIC number"
+                />
+              </div>
+              <Button
+                size="sm"
+                disabled={!outlet || isSavingCustomerNTN || customerNTN.trim() === (outlet?.NTN || '')}
+                onClick={handleSaveCustomerNTN}
+                className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold"
+              >
+                {isSavingCustomerNTN ? 'Saving...' : 'Save to Customer'}
+              </Button>
+              {!outlet && <p className="w-full text-xs text-red-600">Customer record was not found. Update the customer in Shops &amp; Customers.</p>}
+              {customerNTNSaveError && <p className="w-full text-xs text-red-600">{customerNTNSaveError}</p>}
+            </div>
+          )}
 
           {showDeliveryEditor && (
             <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-end gap-2">
