@@ -37,20 +37,30 @@ const loadInvoiceTaxes = (): InvoiceTax[] => {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed)) {
+        const isPreviousDefault = parsed.length === 2 &&
+          parsed.some(tax => tax && typeof tax === 'object' && tax.id === 'gst' && tax.name === 'GST' && Number(tax.rate) === 0) &&
+          parsed.some(tax => tax && typeof tax === 'object' && tax.id === 'advance-tax' && tax.name === 'Advance Tax' && Number(tax.rate) === 0);
         return parsed
           .filter((tax): tax is InvoiceTax => tax && typeof tax.name === 'string' && Number.isFinite(Number(tax.rate)))
-          .map(tax => ({ id: String(tax.id || Date.now()), name: tax.name, rate: Math.max(0, Math.min(100, Number(tax.rate))) }));
+          .map(tax => ({
+            id: String(tax.id || Date.now()),
+            name: tax.name,
+            rate: isPreviousDefault && tax.id === 'gst' ? 18 : Math.max(0, Math.min(100, Number(tax.rate)))
+          }));
       }
     }
   } catch { /* use configured defaults */ }
   try {
-    const rate = Number((getSettings() as any).invoiceTaxRate);
+    const configuredRate = (getSettings() as any).invoiceTaxRate;
+    const rate = configuredRate === undefined || configuredRate === null || configuredRate === ''
+      ? 18
+      : Number(configuredRate);
     return [
       { id: 'gst', name: 'GST', rate: Number.isFinite(rate) ? Math.max(0, Math.min(100, rate)) : 0 },
       { id: 'advance-tax', name: 'Advance Tax', rate: 0 }
     ];
   } catch {
-    return [{ id: 'gst', name: 'GST', rate: 0 }, { id: 'advance-tax', name: 'Advance Tax', rate: 0 }];
+    return [{ id: 'gst', name: 'GST', rate: 18 }, { id: 'advance-tax', name: 'Advance Tax', rate: 0 }];
   }
 };
 
@@ -253,7 +263,6 @@ export function DigitalInvoiceModal({
   let dateText = sale.Date || '';
   try { if (sale.Date) dateText = format(new Date(sale.Date), 'dd-MMM-yyyy'); } catch { /* keep raw */ }
 
-  const discount = Number(sale.Discount) || 0;
   const base = items;
   const grossOf = (it: any) => (typeof it.price === 'number' ? Number(it.qty) * it.price : 0);
   const totalGross = base.reduce((n, it) => n + grossOf(it), 0);
@@ -265,9 +274,8 @@ export function DigitalInvoiceModal({
   const totalQty = rows.reduce((n, r) => n + Number(r.it.qty || 0), 0);
   const totalTradeOffer = rows.reduce((n, r) => n + r.offer, 0);
   const subtotalNet = totalGross - totalTradeOffer;
-  const additionalDiscount = Math.max(0, discount);
   const totalOffer = totalTradeOffer;
-  const net = Math.max(0, subtotalNet - additionalDiscount);
+  const net = Math.max(0, subtotalNet);
   const taxAmounts = taxes.map(tax => ({
     ...tax,
     amount: Math.round(net * tax.rate) / 100
@@ -355,7 +363,6 @@ export function DigitalInvoiceModal({
 
       <table className="dinv-sum">
         <tbody>
-          <tr><td>Less Additional Discount</td><td>{fmt(additionalDiscount)}</td></tr>
           {taxAmounts.map(tax => (
             <tr key={tax.id}><td>{tax.name} {tax.rate.toFixed(2)} %</td><td>{fmt(tax.amount)}</td></tr>
           ))}
