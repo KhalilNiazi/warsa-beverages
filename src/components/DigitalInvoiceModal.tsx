@@ -241,7 +241,10 @@ export function DigitalInvoiceModal({
   const companyNTN = settings.companyNTN || 'H039315';
 
   const outlet = outlets.find(o =>
-    o.Name === sale.OutletName || (sale.OutletCode && o.Code === sale.OutletCode) || o.Address === sale.Address
+    (sale.OutletID && o.ID === sale.OutletID) ||
+    o.Name === sale.OutletName ||
+    (sale.OutletCode && o.Code === sale.OutletCode) ||
+    o.Address === sale.Address
   );
   const outletCode = outlet?.Code || sale.OutletCode || '-';
   const balance = outlet?.OpeningBalance !== undefined ? outlet.OpeningBalance : sale.GrandTotal;
@@ -275,7 +278,7 @@ export function DigitalInvoiceModal({
   const opening = Number(outlet?.OpeningBalance) || 0;
   const closing = opening + grand;
   const fmt = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const customerNTN = (outlet as any)?.NTN || (outlet as any)?.CustomerNTN || '';
+  const customerNTN = outlet?.NTN || '';
 
   const Sheet = () => (
     <div className="dinv-sheet">
@@ -302,7 +305,7 @@ export function DigitalInvoiceModal({
           <div><b>Mobile No:</b> {sale.ContactNumber || outlet?.ContactNumber || '-'}</div>
         </div>
         <div>
-          <div><b>Section:</b> {sale.Route || '-'}</div>
+          <div><b>Section:li  </b> {sale.Route || '-'}</div>
           <div><b>Order Booker:</b> {outlet?.OB || sale.OrderBooker || sale.BookedBy || '-'}</div>
           <div><b>Delivery Man:</b> {deliveryManName || '-'}</div>
         </div>

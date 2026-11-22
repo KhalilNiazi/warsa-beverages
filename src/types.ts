@@ -252,6 +252,7 @@ export interface Outlet {
   Area?: string;
   Address: string;
   ContactNumber: string;
+  NTN?: string;
   OwnerName: string;
   OB: string;
   OrderBookerID?: string;

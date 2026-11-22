@@ -110,6 +110,7 @@ export function Outlets() {
       Route: editingOutlet.Route || (isBooker && assignedRoutes.length > 0 ? assignedRoutes[0] : ''),
       Address: editingOutlet.Address || '',
       ContactNumber: editingOutlet.ContactNumber || '',
+      NTN: editingOutlet.NTN || '',
       OwnerName: editingOutlet.OwnerName || '',
       DeliveryManName: editingOutlet.DeliveryManName || '',
       OB: selectedBooker?.Name || editingOutlet.OB || (isBooker ? currentUser?.name : ''),
@@ -272,6 +273,10 @@ export function Outlets() {
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-gray-700 uppercase">Phone Number</label>
               <Input disabled={!canEdit} placeholder="e.g. 0336-4574227" value={editingOutlet.ContactNumber || ''} onChange={e => setEditingOutlet({...editingOutlet, ContactNumber: e.target.value})} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-700 uppercase">Customer NTN / CNIC</label>
+              <Input disabled={!canEdit} placeholder="Enter NTN or CNIC number" value={editingOutlet.NTN || ''} onChange={e => setEditingOutlet({...editingOutlet, NTN: e.target.value})} />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-gray-700 uppercase">Order Booker</label>

@@ -82,7 +82,7 @@ var _scriptLock = null;
 
 var TEXT_FORMAT_HEADERS = [
   'ID', 'id', 'username', 'OutletID', 'InvoiceID', 'ProductID', 'OrderBookerID', 'ReferenceID',
-  'OwnerUID', 'ContactNumber', 'Phone', 'phone', 'ReferenceNumber',
+  'OwnerUID', 'ContactNumber', 'Phone', 'phone', 'ReferenceNumber', 'NTN', 'CNIC',
   'SKU', 'Code', 'OutletCode', 'VehicleNumber', 'LoadNumber', 'slipNumber',
   'BatchNumber', 'TargetID', 'SaleIDs'
 ];
@@ -106,7 +106,7 @@ SCHEMAS[SHEETS.SALES] = [
 SCHEMAS[SHEETS.OUTLETS] = [
   'ID', 'SrNo', 'Code', 'Name', 'Route', 'Area', 'Address', 'ContactNumber', 
   'OwnerName', 'OB', 'OrderBookerID', 'DeliveryManName', 'CustomerType', 'Status', 'CustomRates', 'OpeningBalance',
-  'CreditLimit', 'CreatedAt', 'UpdatedAt', 'CreatedBy', 'UpdatedBy'
+  'CreditLimit', 'CreatedAt', 'UpdatedAt', 'CreatedBy', 'UpdatedBy', 'NTN'
 ];
 
 SCHEMAS[SHEETS.DISPATCH] = [

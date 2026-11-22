@@ -1617,6 +1617,7 @@ function normalizePulledOutlets(outlets: any[]): Outlet[] {
     return {
       ...o,
       ID: String(o.ID || o.id || idx + 1),
+      NTN: String(o.NTN ?? o.CustomerNTN ?? o.CNIC ?? ''),
       SrNo: sr,
       OpeningBalance: Number(o.OpeningBalance) || 0,
       CreditLimit: Number(o.CreditLimit) || 0,
@@ -2308,6 +2309,7 @@ export const saveOutlet = async (outlet: Outlet): Promise<void> => {
     Name: sanitizeInput(outlet.Name),
     Address: sanitizeInput(outlet.Address || ''),
     ContactNumber: sanitizeInput(outlet.ContactNumber || ''),
+    NTN: sanitizeInput(outlet.NTN || ''),
     OwnerName: sanitizeInput(outlet.OwnerName || ''),
     Route: sanitizeInput(outlet.Route || ''),
     OB: outlet.OB ? sanitizeInput(outlet.OB) : undefined,
