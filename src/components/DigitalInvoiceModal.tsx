@@ -343,7 +343,7 @@ export function DigitalInvoiceModal({
           <div><b>Mobile No:</b> {sale.ContactNumber || outlet?.ContactNumber || '-'}</div>
         </div>
         <div>
-          <div><b>Section:li  </b> {sale.Route || '-'}</div>
+          <div><b>Section:</b> {sale.Route || '-'}</div>
           <div><b>Order Booker:</b> {outlet?.OB || sale.OrderBooker || sale.BookedBy || '-'}</div>
           <div><b>Delivery Man:</b> {deliveryManName || '-'}</div>
         </div>
