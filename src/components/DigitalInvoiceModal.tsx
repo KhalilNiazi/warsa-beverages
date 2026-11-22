@@ -338,10 +338,7 @@ export function DigitalInvoiceModal({
           <div><b>Buyer&rsquo;s Code:</b> {outletCode}</div>
           <div><b>Buyer&rsquo;s Name:</b> {sale.OutletName}</div>
           <div><b>Address:</b> {sale.Address || outlet?.Address || '-'}</div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-            <span><b>NTN/CNIC #:</b> {customerNTN || '—'}</span>
-            <span><b>Tax Amount:</b> {fmt(taxAmount)}</span>
-          </div>
+          <div><b>NTN/CNIC #:</b> {customerNTN || '—'}</div>
           <div><b>STRN #:</b> {(outlet as any)?.STRN || ''}</div>
           <div><b>Mobile No:</b> {sale.ContactNumber || outlet?.ContactNumber || '-'}</div>
         </div>
